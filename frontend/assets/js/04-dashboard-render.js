@@ -137,7 +137,41 @@ function render() {
                 <button class="mbtn" onclick="tp('${u}','wknd')">📅 주말현황</button>
                 <button class="mbtn" onclick="tp('${u}','goal')">🎯 도전목표</button>
             </div>
-            <div id="p_perf_${u}" class="ipanel"><div class="sec-title">📝 실적 기록</div><div class="fg"><div class="ff"><label>날짜</label><input type="date" id="fd_${u}" value="${new Date().toISOString().slice(0, 10)}" onchange="loadPastRec('${u}','${sn}',this.value)"></div></div><button class="sv-btn green" onclick="svRec(this,'${u}','${sn}','${rg}')">💾 저장</button></div>
+            <!-- 실적 등록 패널 -->
+            <div id="p_perf_${u}" class="ipanel">
+                <div class="sec-title">📝 실적 기록</div>
+                <div class="fg" style="margin-bottom:12px">
+                    <div class="ff"><label>날짜</label><input type="date" id="fd_${u}" value="${new Date().toISOString().slice(0, 10)}" onchange="loadPastRec('${u}','${sn}',this.value)"></div>
+                    <div class="ff"><label>사업장</label><input type="text" value="${sn}" readonly style="opacity:0.6"></div>
+                </div>
+
+                <div style="font-size:11px; color:var(--muted); margin-bottom:6px">D/I</div>
+                <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:12px">
+                    <div class="ff"><label>조</label><input type="number" id="fd1_${u}" placeholder="0"></div>
+                    <div class="ff"><label>중</label><input type="number" id="fd2_${u}" placeholder="0"></div>
+                    <div class="ff"><label>석</label><input type="number" id="fd3_${u}" placeholder="0"></div>
+                    <div class="ff"><label>야</label><input type="number" id="fd4_${u}" placeholder="0"></div>
+                </div>
+
+                <div style="font-size:11px; color:var(--muted); margin-bottom:6px">T/O</div>
+                <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:12px">
+                    <div class="ff"><label>조</label><input type="number" id="ft1_${u}" placeholder="0"></div>
+                    <div class="ff"><label>중</label><input type="number" id="ft2_${u}" placeholder="0"></div>
+                    <div class="ff"><label>석</label><input type="number" id="ft3_${u}" placeholder="0"></div>
+                    <div class="ff"><label>야</label><input type="number" id="ft4_${u}" placeholder="0"></div>
+                </div>
+
+                <div class="fg" style="margin-bottom:12px">
+                    <div class="ff"><label>도전매출</label><input type="number" id="fsl_${u}" placeholder="0"></div>
+                    <div class="ff"><label>재료비(%)</label><input type="number" id="fmt_${u}" placeholder="예: 31.5"></div>
+                </div>
+
+                <div class="ff" style="margin-bottom:12px"><label>식사 특이</label><textarea id="fn1_${u}" rows="2" placeholder="식사 관련 특이사항"></textarea></div>
+                <div class="ff" style="margin-bottom:12px"><label>기타 특이</label><textarea id="fn2_${u}" rows="2" placeholder="기타 특이사항"></textarea></div>
+
+                <div id="fm_${u}" style="text-align:center; font-size:12px; margin-bottom:10px"></div>
+                <button class="sv-btn green" style="width:100%" onclick="svRec(this,'${u}','${sn}','${rg}')">💾 저장</button>
+            </div>
             <div id="p_wknd_${u}" class="ipanel"><div class="sec-title">📅 주말 식수</div><div class="tbl-wrap"><table><thead><tr><th>구분</th><th>조식</th><th>중식</th><th>석식</th><th>야식</th></tr></thead><tbody>
                 <tr><td>D/I</td><td>${f(d["DI_조식(주말)"])}</td><td>${f(d["DI_중식(주말)"])}</td><td>${f(d["DI_석식(주말)"])}</td><td>${f(d["DI_야식(주말)"])}</td></tr>
                 <tr><td>T/O</td><td>${f(d["TO_조식(주말)"])}</td><td>${f(d["TO_중식(주말)"])}</td><td>${f(d["TO_석식(주말)"])}</td><td>${f(d["TO_야식(주말)"])}</td></tr>
