@@ -216,3 +216,31 @@ window.svRec = async function (btnOrU, uOrSn, snOrRg, rg) {
         if (btn) { btn.disabled = false; btn.innerText = "💾 저장"; }
     }
 };
+
+// --- 커스텀 태그 관리 ---
+const DEFAULT_TAGS = [
+    { text: '패밀리데이 🏠', type: 'dec' },
+    { text: '사업장소독 🧼', type: 'dec' },
+    { text: '조업단축 📉', type: 'dec' },
+    { text: '월간특식 🍱', type: 'inc' },
+    { text: '이벤트 🎁', type: 'inc' },
+    { text: '특근발생 📈', type: 'inc' }
+];
+
+window.getTags = function() {
+    try {
+        const saved = localStorage.getItem("WS_TAGS");
+        return saved ? JSON.parse(saved) : DEFAULT_TAGS;
+    } catch (e) { return DEFAULT_TAGS; }
+};
+
+window.editTag = function(e, index) {
+    e.stopPropagation(); // 태그 토글 방지
+    const tags = window.getTags();
+    const newText = prompt("태그 명칭 수정", tags[index].text);
+    if (newText && newText.trim()) {
+        tags[index].text = newText.trim();
+        localStorage.setItem("WS_TAGS", JSON.stringify(tags));
+        render(); // 화면 갱신
+    }
+};

@@ -161,14 +161,14 @@ function render() {
                     <div class="ff"><label>야</label><input type="number" id="ft4_${u}" placeholder="0"></div>
                 </div>
 
-                <div style="font-size:11px; color:var(--muted); margin-bottom:10px">실적 변동 요인 (중복 선택 가능)</div>
+                <div style="font-size:11px; color:var(--muted); margin-bottom:10px">실적 변동 요인 (중복 선택 가능 / ✏️ 터치시 명칭 수정)</div>
                 <div class="tag-row" id="tags_${u}">
-                    <div class="event-tag tag-dec" onclick="this.classList.toggle('active')">패밀리데이 🏠</div>
-                    <div class="event-tag tag-dec" onclick="this.classList.toggle('active')">사업장소독 🧼</div>
-                    <div class="event-tag tag-dec" onclick="this.classList.toggle('active')">조업단축 📉</div>
-                    <div class="event-tag tag-inc" onclick="this.classList.toggle('active')">월간특식 🍱</div>
-                    <div class="event-tag tag-inc" onclick="this.classList.toggle('active')">이벤트 🎁</div>
-                    <div class="event-tag tag-inc" onclick="this.classList.toggle('active')">특근발생 📈</div>
+                    ${getTags().map((t, idx) => `
+                        <div class="event-tag tag-${t.type}" onclick="this.classList.toggle('active')">
+                            ${t.text}
+                            <span style="margin-left:6px; font-size:10px; opacity:0.5;" onclick="editTag(event, ${idx})">✏️</span>
+                        </div>
+                    `).join("")}
                 </div>
 
                 <div id="fm_${u}" style="text-align:center; font-size:12px; margin-bottom:10px"></div>
