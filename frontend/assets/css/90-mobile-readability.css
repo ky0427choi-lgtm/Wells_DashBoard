@@ -446,30 +446,43 @@ td:first-child {
     .kpi-v2 {
         background: rgba(255, 255, 255, .05) !important;
         border: 1px solid rgba(148, 163, 184, .16) !important;
-        border-radius: 18px !important;
-        padding: 18px 10px !important;
+        border-radius: 20px !important;
+        padding: 24px 10px !important; /* 패딩 확대 */
         text-align: center;
         transition: all .2s;
+        display: flex; /* 중앙 정렬 강화 */
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        min-height: 120px; /* 최소 높이 확보 */
     }
     .kpi-v2:active {
         transform: scale(0.96);
         background: rgba(255, 255, 255, .1) !important;
     }
     .kv2-lbl {
-        font-size: 11px !important;
+        font-size: 18px !important; /* 폰트 확대 (원본 대비 약 2배) */
         color: var(--dim) !important;
-        margin-bottom: 8px;
+        margin-bottom: 12px;
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 4px;
+        gap: 6px;
+        font-weight: 800;
     }
     .kpi-pen {
-        font-size: 16px !important; /* 펜 크기 확대 */
+        font-size: 20px !important; /* 펜 아이콘도 함께 확대 */
         opacity: 0.9;
     }
     .kv2-val {
-        font-size: 21px !important;
+        font-size: 38px !important; /* 수치 대폭 확대 (원본 대비 약 2배) */
+        font-weight: 900 !important;
+        line-height: 1;
+        letter-spacing: -1px;
+    }
+    .goal-input {
+        font-size: 34px !important; /* 입력창도 수치 크기에 맞춰 확대 */
+        height: 54px !important;
         font-weight: 900 !important;
     }
 }
