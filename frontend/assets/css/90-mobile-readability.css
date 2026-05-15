@@ -378,7 +378,7 @@ td:first-child {
 }
 
 /* ===== Small mobile correction ===== */
-@media (max-width: 430px) {
+@media (max-width: 767px) {
     main {
         padding: 12px 10px 22px;
     }

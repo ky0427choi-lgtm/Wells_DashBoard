@@ -266,8 +266,8 @@
 .ch-apex { width: 100%; min-height: 10px; }
 
 /* ===== KPI 카드 고도화 ===== */
-.kpi-row-v2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 14px; }
-@media(min-width:480px) { .kpi-row-v2 { grid-template-columns: repeat(4, 1fr); } }
+.kpi-row-v2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px; }
+/* @media(min-width:768px) { .kpi-row-v2 { grid-template-columns: repeat(4, 1fr); } } 태블릿 이상에서만 4열 적용 */
 
 .kpi-v2 {
     background: rgba(255, 255, 255, .02);
