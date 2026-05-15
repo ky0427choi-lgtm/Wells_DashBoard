@@ -1,333 +1,251 @@
-        /* ===== REPORT OVERLAY ===== */
-        .ov {
-            position: fixed;
-            inset: 0;
-            background: rgba(10, 15, 30, .85);
-            backdrop-filter: blur(12px);
-            z-index: 1500;
-            display: none;
-            justify-content: center;
-            align-items: center;
-            padding: 16px
-        }
+/* ===== REPORT OVERLAY ===== */
+.ov {
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 15, 30, .85);
+    backdrop-filter: blur(12px);
+    z-index: 1500;
+    display: none;
+    justify-content: center;
+    align-items: center;
+    padding: 16px;
+}
 
-        .ov-box {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 20px;
-            padding: 28px 24px;
-            width: 100%;
-            max-width: 540px;
-            max-height: 88vh;
-            overflow-y: auto;
-            box-shadow: 0 24px 64px rgba(0, 0, 0, .5)
-        }
+.ov-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 28px 24px;
+    width: 100%;
+    max-width: 540px;
+    max-height: 88vh;
+    overflow-y: auto;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, .5);
+}
 
-        .ov-hdr {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 24px
-        }
+.ov-hdr {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
 
-        .ov-hdr h3 {
-            font-size: 16px;
-            font-weight: 900;
-            letter-spacing: -.3px
-        }
+.ov-hdr h3 {
+    font-size: 16px;
+    font-weight: 900;
+    letter-spacing: -.3px;
+}
 
-        .cls-btn {
-            padding: 6px 14px;
-            border-radius: 8px;
-            background: rgba(255, 255, 255, .04);
-            border: 1px solid var(--border);
-            color: var(--muted);
-            font-size: 11px;
-            font-weight: 800;
-            cursor: pointer;
-            transition: all .2s
-        }
+.cls-btn {
+    padding: 6px 14px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, .04);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: all .2s;
+}
 
-        .cls-btn:hover {
-            border-color: var(--accent);
-            color: var(--accent)
-        }
+.cls-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
 
-        .ch-bar {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 8px
-        }
+.ch-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
 
-        .ch-name {
-            width: 48px;
-            text-align: right;
-            font-size: 11px;
-            font-weight: 800;
-            flex-shrink: 0;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            color: var(--muted)
-        }
+.ch-name {
+    width: 48px;
+    text-align: right;
+    font-size: 11px;
+    font-weight: 800;
+    flex-shrink: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--muted);
+}
 
-        .ch-track {
-            flex: 1;
-            height: 24px;
-            background: rgba(255, 255, 255, .03);
-            border-radius: 6px;
-            overflow: hidden;
-            position: relative
-        }
+.ch-track {
+    flex: 1;
+    height: 24px;
+    background: rgba(255, 255, 255, .03);
+    border-radius: 6px;
+    overflow: hidden;
+    position: relative;
+}
 
-        .ch-fill {
-            height: 100%;
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: flex-end;
-            padding-right: 8px;
-            font-size: 10px;
-            font-weight: 900;
-            color: #fff;
-            text-shadow: 0 1px 3px rgba(0, 0, 0, .4);
-            min-width: 28px;
-            transition: width .6s ease-out
-        }
+.ch-fill {
+    height: 100%;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 8px;
+    font-size: 10px;
+    font-weight: 900;
+    color: #fff;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, .4);
+    min-width: 28px;
+    transition: width .6s ease-out;
+}
 
-        .ch-dual {
-            display: flex;
-            gap: 3px;
-            margin-bottom: 3px
-        }
+.ch-dual { display: flex; gap: 3px; margin-bottom: 3px; }
+.ch-dual .ch-track { height: 18px; }
 
-        .ch-dual .ch-track {
-            height: 18px
-        }
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 900;
+}
 
-        .badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 3px;
-            padding: 3px 8px;
-            border-radius: 6px;
-            font-size: 10px;
-            font-weight: 900
-        }
+.note-box {
+    background: linear-gradient(135deg, rgba(56, 189, 248, .03), rgba(129, 140, 248, .02));
+    border: 1px solid rgba(56, 189, 248, .08);
+    border-radius: var(--r2);
+    padding: 16px;
+    margin-top: 16px;
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.8;
+}
 
-        .note-box {
-            background: linear-gradient(135deg, rgba(56, 189, 248, .03), rgba(129, 140, 248, .02));
-            border: 1px solid rgba(56, 189, 248, .08);
-            border-radius: var(--r2);
-            padding: 16px;
-            margin-top: 16px;
-            font-size: 11px;
-            color: var(--muted);
-            line-height: 1.8
-        }
+.note-box strong { color: var(--accent); }
+.note-box .formula { color: var(--dim); margin-left: 14px; display: block; }
 
-        .note-box strong {
-            color: var(--accent)
-        }
+/* ===== 캘린더 ===== */
+.cal-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 15, 30, .92);
+    backdrop-filter: blur(16px);
+    z-index: 1600;
+    display: none;
+    justify-content: center;
+    align-items: center;
+    padding: 16px;
+}
 
-        .note-box .formula {
-            color: var(--dim);
-            margin-left: 14px;
-            display: block
-        }
+.cal-modal.show { display: flex; }
 
-        /* ===== 캘린더 ===== */
-        .cal-modal {
-            position: fixed;
-            inset: 0;
-            background: rgba(10, 15, 30, .92);
-            backdrop-filter: blur(16px);
-            z-index: 1600;
-            display: none;
-            justify-content: center;
-            align-items: center;
-            padding: 16px
-        }
+.cal-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 24px;
+    width: 100%;
+    max-width: 500px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, .6);
+}
 
-        .cal-modal.show {
-            display: flex
-        }
+.cal-hdr {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
 
-        .cal-box {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 20px;
-            padding: 24px;
-            width: 100%;
-            max-width: 500px;
-            max-height: 90vh;
-            overflow-y: auto;
-            box-shadow: 0 24px 64px rgba(0, 0, 0, .6)
-        }
+.cal-hdr h3 { font-size: 15px; font-weight: 900; }
 
-        .cal-hdr {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px
-        }
+.cal-nav { display: flex; align-items: center; gap: 12px; }
+.cal-nav button {
+    background: rgba(255, 255, 255, .04);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    width: 28px;
+    height: 28px;
+    cursor: pointer;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all .2s;
+}
 
-        .cal-hdr h3 {
-            font-size: 15px;
-            font-weight: 900
-        }
+.cal-nav .mon-lbl { font-size: 13px; font-weight: 900; min-width: 80px; text-align: center; }
 
-        .cal-nav {
-            display: flex;
-            align-items: center;
-            gap: 12px
-        }
+.cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 3px;
+    margin-bottom: 16px;
+}
 
-        .cal-nav button {
-            background: rgba(255, 255, 255, .04);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            color: var(--text);
-            width: 28px;
-            height: 28px;
-            cursor: pointer;
-            font-size: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all .2s
-        }
+.cal-dow { text-align: center; font-size: 10px; font-weight: 800; color: var(--dim); padding: 4px 0; }
 
-        .cal-nav button:hover {
-            border-color: var(--accent);
-            color: var(--accent)
-        }
+.cal-day {
+    aspect-ratio: 1;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 800;
+    transition: all .2s;
+    position: relative;
+    gap: 1px;
+}
 
-        .cal-nav .mon-lbl {
-            font-size: 13px;
-            font-weight: 900;
-            min-width: 80px;
-            text-align: center
-        }
+.cal-day.has-data::after {
+    content: '';
+    width: 5px;
+    height: 5px;
+    background: var(--accent);
+    border-radius: 50%;
+    position: absolute;
+    bottom: 3px;
+}
 
-        .cal-grid {
-            display: grid;
-            grid-template-columns: repeat(7, 1fr);
-            gap: 3px;
-            margin-bottom: 16px
-        }
+.cal-day.today { background: rgba(56, 189, 248, .1); border: 1px solid rgba(56, 189, 248, .3); }
+.cal-day.selected { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; }
+.cal-day.other-month { opacity: .25; }
 
-        .cal-dow {
-            text-align: center;
-            font-size: 10px;
-            font-weight: 800;
-            color: var(--dim);
-            padding: 4px 0
-        }
+.cal-detail {
+    background: rgba(0, 0, 0, .3);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    margin-top: 8px;
+    animation: slideIn .2s ease-out;
+}
 
-        .cal-day {
-            aspect-ratio: 1;
-            border-radius: 8px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            font-size: 11px;
-            font-weight: 800;
-            transition: all .2s;
-            position: relative;
-            gap: 1px
-        }
+.cal-detail .dt-title { font-size: 13px; font-weight: 900; color: var(--accent); margin-bottom: 12px; }
 
-        .cal-day:hover {
-            background: rgba(56, 189, 248, .08)
-        }
+.cal-meal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
 
-        .cal-day.has-data::after {
-            content: '';
-            width: 5px;
-            height: 5px;
-            background: var(--accent);
-            border-radius: 50%;
-            position: absolute;
-            bottom: 3px
-        }
+.cal-meal-box {
+    background: rgba(255, 255, 255, .02);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    text-align: center;
+}
 
-        .cal-day.today {
-            background: rgba(56, 189, 248, .1);
-            border: 1px solid rgba(56, 189, 248, .3)
-        }
+.cal-meal-box .mlb { font-size: 9px; color: var(--dim); font-weight: 700; margin-bottom: 4px; }
+.cal-meal-box .mval { font-size: 16px; font-weight: 900; }
+.cal-meal-box .msub { font-size: 9px; color: var(--muted); margin-top: 2px; }
 
-        .cal-day.selected {
-            background: linear-gradient(135deg, var(--accent), var(--accent2));
-            color: #fff
-        }
-
-        .cal-day.other-month {
-            opacity: .25
-        }
-
-        .cal-detail {
-            background: rgba(0, 0, 0, .3);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 16px;
-            margin-top: 8px;
-            animation: slideIn .2s ease-out
-        }
-
-        .cal-detail .dt-title {
-            font-size: 13px;
-            font-weight: 900;
-            color: var(--accent);
-            margin-bottom: 12px
-        }
-
-        .cal-meal-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 6px;
-            margin-bottom: 8px
-        }
-
-        .cal-meal-box {
-            background: rgba(255, 255, 255, .02);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 10px;
-            text-align: center
-        }
-
-        .cal-meal-box .mlb {
-            font-size: 9px;
-            color: var(--dim);
-            font-weight: 700;
-            margin-bottom: 4px
-        }
-
-        .cal-meal-box .mval {
-            font-size: 16px;
-            font-weight: 900
-        }
-
-        .cal-meal-box .msub {
-            font-size: 9px;
-            color: var(--muted);
-            margin-top: 2px
-        }
-
-        .emotion-btn {
-            background: none;
-            border: none;
-            cursor: pointer;
-            font-size: 22px;
-            padding: 2px 6px;
-            transition: transform .2s;
-            display: inline-block
-        }
-
-        .emotion-btn:hover {
-            transform: scale(1.25)
-        }
+.emotion-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 22px;
+    padding: 2px 6px;
+    transition: transform .2s;
+    display: inline-block;
+}

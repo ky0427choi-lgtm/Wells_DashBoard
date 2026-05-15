@@ -1,0 +1,442 @@
+/* =====================================================
+   Mobile Readability Patch
+   - 기능 변경 없음
+   - 기존 HTML/JS 유지
+   - 모바일 가독성 및 색상 대비 보정
+===================================================== */
+
+/* ===== Layout ===== */
+main {
+    padding: 14px 12px 24px;
+    gap: 16px;
+    max-width: 620px;
+    margin: 0 auto; /* 중앙 정렬 */
+}
+
+header {
+    background: rgba(7, 17, 31, .94);
+    border-bottom: 1px solid rgba(148, 163, 184, .16);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, .22);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+}
+
+.header-top {
+    gap: 10px;
+}
+
+.header-top h1 {
+    font-size: clamp(15px, 4.2vw, 19px);
+    line-height: 1.2;
+    letter-spacing: -.4px;
+}
+
+#lastUpdate {
+    font-size: 11px;
+    color: var(--muted);
+}
+
+#role-badge {
+    font-size: 11px;
+    padding: 3px 9px;
+}
+
+/* ===== Header buttons ===== */
+.hdr-btns {
+    gap: 5px;
+    flex-shrink: 0;
+}
+
+.hdr-btn {
+    min-width: 36px;
+    height: 36px;
+    padding: 0 10px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, .06);
+    border: 1px solid rgba(148, 163, 184, .18);
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+}
+
+.hdr-btn.accent {
+    background: rgba(56, 189, 248, .10);
+    border-color: rgba(56, 189, 248, .36);
+    color: #7dd3fc;
+}
+
+/* ===== Region chips ===== */
+.filter-row {
+    gap: 8px;
+    padding: 8px 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+.filter-row::-webkit-scrollbar { display: none; }
+
+.chip {
+    padding: 8px 15px;
+    font-size: 13px;
+    color: var(--muted);
+    background: rgba(255, 255, 255, .055);
+    border: 1px solid rgba(148, 163, 184, .18);
+    border-radius: 10px;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.chip.active {
+    color: #fff;
+    background: linear-gradient(135deg, #0ea5e9, #6366f1);
+    box-shadow: 0 4px 16px rgba(14, 165, 233, .24);
+    border: none;
+}
+
+/* ===== Card ===== */
+.card {
+    background: linear-gradient(180deg, rgba(18, 31, 51, .98), rgba(13, 24, 42, .98));
+    border: 1px solid rgba(148, 163, 184, .18);
+    border-radius: 20px;
+    box-shadow: 0 14px 34px rgba(0, 0, 0, .34);
+    overflow: hidden;
+}
+
+.card-inner {
+    padding: 18px 16px;
+}
+
+.card-header {
+    margin-bottom: 15px;
+    gap: 10px;
+}
+
+.region-tag {
+    font-size: 12px;
+    color: #7dd3fc;
+    opacity: 1;
+    letter-spacing: .3px;
+    font-weight: 700;
+}
+
+.site-name {
+    font-size: clamp(19px, 5.2vw, 23px);
+    line-height: 1.22;
+    color: var(--text-strong);
+    word-break: keep-all;
+    font-weight: 900;
+}
+
+.total-badge .label {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 700;
+}
+
+.total-badge .val {
+    font-size: 22px;
+    color: var(--success);
+    font-weight: 900;
+}
+
+/* ===== Monthly summary ===== */
+.monthly-bar {
+    gap: 8px;
+    padding: 9px 11px;
+    margin: 10px 0 13px;
+    background: rgba(56, 189, 248, .06);
+    border: 1px solid rgba(56, 189, 248, .15);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+}
+
+.mb-item {
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.mb-val {
+    color: #f8fafc;
+    font-weight: 900;
+}
+
+.mb-pct {
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 6px;
+}
+
+/* ===== Stats cards ===== */
+.stats-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 9px;
+    margin-bottom: 14px;
+}
+
+.sbox {
+    background: rgba(255, 255, 255, .055);
+    border: 1px solid rgba(148, 163, 184, .16);
+    border-radius: 15px;
+    padding: 13px 8px;
+    text-align: center;
+}
+
+.sbox .lb {
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 6px;
+    display: block;
+}
+
+.sbox .vl {
+    font-size: clamp(16px, 4.4vw, 19px);
+    color: var(--text-strong);
+    letter-spacing: -.2px;
+    font-weight: 900;
+}
+
+.sbox-auto {
+    border-color: rgba(45, 212, 191, .34) !important;
+    background: rgba(45, 212, 191, .075) !important;
+}
+
+/* ===== Staff panel ===== */
+.staff-panel {
+    background: rgba(56, 189, 248, .055);
+    border: 1px solid rgba(56, 189, 248, .16);
+    border-radius: 15px;
+    padding: 13px;
+    margin-bottom: 14px;
+    position: relative;
+}
+
+.staff-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.staff-grid .lb {
+    font-size: 11px;
+    color: var(--muted);
+    display: block;
+}
+
+.staff-grid .vl {
+    font-size: 17px;
+    color: var(--text-strong);
+    font-weight: 800;
+}
+
+/* ===== Table ===== */
+.tbl-wrap {
+    background: rgba(2, 6, 23, .34);
+    border: 1px solid rgba(148, 163, 184, .16);
+    border-radius: 15px;
+    overflow: hidden;
+    margin-bottom: 14px;
+}
+
+table {
+    font-size: 13px;
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th {
+    padding: 11px 9px;
+    font-size: 11px;
+    color: var(--muted);
+    background: rgba(255, 255, 255, .035);
+    font-weight: 700;
+    text-align: center;
+}
+
+td {
+    padding: 11px 9px;
+    font-size: 13px;
+    color: var(--text);
+    border-bottom: 1px solid rgba(148, 163, 184, .09);
+    text-align: center;
+}
+
+td:first-child {
+    color: #7dd3fc;
+    font-weight: 700;
+}
+
+.row-sum td {
+    background: rgba(45, 212, 191, .08);
+    color: #5eead4 !important;
+    font-weight: 900;
+}
+
+/* ===== Buttons ===== */
+.btn-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.mbtn,
+.sv-btn,
+.report-btn {
+    min-height: 44px;
+    border-radius: 13px;
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    transition: all .2s;
+}
+
+.mbtn {
+    background: rgba(255, 255, 255, .06);
+    border-color: rgba(148, 163, 184, .18);
+    color: #fff;
+}
+
+.mbtn.pri,
+.sv-btn.blue,
+.report-btn.pri {
+    background: linear-gradient(135deg, #0ea5e9, #6366f1);
+    box-shadow: 0 6px 18px rgba(14, 165, 233, .22);
+    border: none;
+    color: #fff;
+}
+
+.sv-btn.green {
+    background: linear-gradient(135deg, #14b8a6, #059669);
+    border: none;
+    color: #fff;
+}
+
+/* ===== Inputs ===== */
+.ff label {
+    font-size: 11px;
+    color: var(--muted);
+    display: block;
+    margin-bottom: 4px;
+}
+
+.ff input,
+.ff textarea,
+.goal-input {
+    width: 100%;
+    min-height: 42px;
+    font-size: 14px;
+    background: rgba(255, 255, 255, .065);
+    border: 1px solid rgba(148, 163, 184, .18);
+    border-radius: 10px;
+    color: var(--text-strong);
+    padding: 0 10px;
+}
+
+.ff input:focus,
+.ff textarea:focus,
+.goal-input:focus {
+    border-color: rgba(56, 189, 248, .75);
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, .12);
+    outline: none;
+}
+
+/* ===== Inline panels ===== */
+.ipanel {
+    background: rgba(7, 17, 31, .85);
+    border: 1px solid rgba(148, 163, 184, .16);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 14px;
+    display: none;
+}
+.ipanel.show { display: block; }
+
+.sec-title {
+    font-size: 13px;
+    color: #7dd3fc;
+    border-bottom: 1px solid rgba(148, 163, 184, .14);
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+    font-weight: 800;
+}
+
+/* ===== Small mobile correction ===== */
+@media (max-width: 430px) {
+    main {
+        padding: 12px 10px 22px;
+    }
+
+    header {
+        padding-left: 14px;
+        padding-right: 14px;
+    }
+
+    .header-top {
+        align-items: flex-start;
+    }
+
+    .hdr-btn {
+        width: 36px;
+        padding: 0;
+        justify-content: center;
+    }
+
+    .card-inner {
+        padding: 16px 14px;
+    }
+
+    .card-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .total-badge {
+        width: 100%;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        text-align: left;
+        padding: 10px 12px;
+        background: rgba(45, 212, 191, .07);
+        border: 1px solid rgba(45, 212, 191, .16);
+        border-radius: 14px;
+    }
+
+    .btn-row {
+        grid-template-columns: 1fr;
+    }
+
+    .fg {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+
+    .report-actions {
+        flex-direction: column;
+        padding: 12px 14px;
+        display: flex;
+        gap: 8px;
+    }
+}
+
+@media (max-width: 340px) {
+    .stats-row {
+        grid-template-columns: 1fr;
+    }
+
+    .fg {
+        grid-template-columns: 1fr;
+    }
+
+    .site-name {
+        font-size: 18px;
+    }
+}
