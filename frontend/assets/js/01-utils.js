@@ -2,7 +2,7 @@
    01-utils.js — 공통 유틸리티 함수
 ===================================================== */
 function n(v) { if (v == null) return 0; var t = String(v).trim(); if (!t || t === "-") return 0; var x = parseFloat(t.replace(/[^0-9.-]/g, '')); return isFinite(x) ? x : 0; }
-function f(v) { if (v == null || v === "") return "-"; return Number(v).toLocaleString(); }
+function f(v) { if (v == null || v === "" || isNaN(Number(v)) || Number(v) === 0) return "-"; return Number(v).toLocaleString(); }
 function rc(v) { if (v > 0) return "var(--danger)"; if (v < 0) return "var(--accent)"; return "inherit"; }
 
 function gSt(sn) {

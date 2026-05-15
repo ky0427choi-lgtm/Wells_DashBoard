@@ -138,7 +138,10 @@ function render() {
                 <button class="mbtn" onclick="tp('${u}','goal')">🎯 도전목표</button>
             </div>
             <div id="p_perf_${u}" class="ipanel"><div class="sec-title">📝 실적 기록</div><div class="fg"><div class="ff"><label>날짜</label><input type="date" id="fd_${u}" value="${new Date().toISOString().slice(0, 10)}" onchange="loadPastRec('${u}','${sn}',this.value)"></div></div><button class="sv-btn green" onclick="svRec(this,'${u}','${sn}','${rg}')">💾 저장</button></div>
-            <div id="p_wknd_${u}" class="ipanel"><div class="sec-title">📅 주말 식수</div><div class="tbl-wrap"><table><tbody><tr><td>D/I 중식</td><td>${f(d["DI_중식(주말)"])}</td></tr></tbody></table></div></div>
+            <div id="p_wknd_${u}" class="ipanel"><div class="sec-title">📅 주말 식수</div><div class="tbl-wrap"><table><thead><tr><th>구분</th><th>조식</th><th>중식</th><th>석식</th><th>야식</th></tr></thead><tbody>
+                <tr><td>D/I</td><td>${f(d["DI_조식(주말)"])}</td><td>${f(d["DI_중식(주말)"])}</td><td>${f(d["DI_석식(주말)"])}</td><td>${f(d["DI_야식(주말)"])}</td></tr>
+                <tr><td>T/O</td><td>${f(d["TO_조식(주말)"])}</td><td>${f(d["TO_중식(주말)"])}</td><td>${f(d["TO_석식(주말)"])}</td><td>${f(d["TO_야식(주말)"])}</td></tr>
+            </tbody></table></div></div>
             <div id="p_goal_${u}" class="ipanel"><div class="sec-title">🎯 도전 목표</div><div class="tbl-wrap"><table><tbody><tr><td>도전매출</td><td>${f(d["도전매출"])}</td></tr></tbody></table></div>${cB}</div>
             </div></div>`;
     }).join("");
