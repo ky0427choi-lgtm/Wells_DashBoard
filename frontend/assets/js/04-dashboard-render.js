@@ -145,27 +145,31 @@ function render() {
             <div id="p_goal_${u}" class="ipanel">
                 <div class="sec-title">🎯 도전 목표 & KPI</div>
                 <div class="kpi-row-v2" style="margin-bottom:18px">
-                    <div class="kpi-v2 accent" onclick="${canEdit ? `edKPI('${u}','${sn}','매출')` : ''}">
-                        <div class="kv2-lbl">도전매출 ${canEdit ? '<span class="kpi-pen">✏️</span>' : ''}</div>
-                        <div class="kv2-val" id="gv_매출_${u}" ondblclick="${canEdit ? `edKPI('${u}','${sn}','매출')` : ''}">${f(d["도전매출"])}</div>
+                    <div class="kpi-v2 accent" onclick="toggleGoalEdit('${u}')">
+                        <div class="kv2-lbl">도전매출 <span class="kpi-pen">✏️</span></div>
+                        <div class="kv2-val" id="gv_매출_${u}">${f(d["도전매출"])}</div>
+                        <input type="number" class="goal-input" id="gi_매출_${u}" value="${d["도전매출"]}" style="display:none" onblur="saveGoal('${u}','${sn}','매출',this.value)">
                     </div>
-                    <div class="kpi-v2 success" onclick="${canEdit ? `edKPI('${u}','${sn}','이익')` : ''}">
-                        <div class="kv2-lbl">영업이익 ${canEdit ? '<span class="kpi-pen">✏️</span>' : ''}</div>
-                        <div class="kv2-val" id="gv_이익_${u}" ondblclick="${canEdit ? `edKPI('${u}','${sn}','이익')` : ''}">${f(d["도전영업이익"])}</div>
+                    <div class="kpi-v2 success" onclick="toggleGoalEdit('${u}')">
+                        <div class="kv2-lbl">영업이익 <span class="kpi-pen">✏️</span></div>
+                        <div class="kv2-val" id="gv_이익_${u}">${f(d["도전영업이익"])}</div>
+                        <input type="number" class="goal-input" id="gi_이익_${u}" value="${d["도전영업이익"]}" style="display:none" onblur="saveGoal('${u}','${sn}','이익',this.value)">
                     </div>
-                    <div class="kpi-v2 warning" onclick="${canEdit ? `edKPI('${u}','${sn}','재료')` : ''}">
-                        <div class="kv2-lbl">재료비(%) ${canEdit ? '<span class="kpi-pen">✏️</span>' : ''}</div>
-                        <div class="kv2-val" id="gv_재료_${u}" ondblclick="${canEdit ? `edKPI('${u}','${sn}','재료')` : ''}">${f(d["재료비율"])}</div>
+                    <div class="kpi-v2 warning" onclick="toggleGoalEdit('${u}')">
+                        <div class="kv2-lbl">재료비(%) <span class="kpi-pen">✏️</span></div>
+                        <div class="kv2-val" id="gv_재료_${u}">${f(d["재료비율"])}</div>
+                        <input type="number" class="goal-input" id="gi_재료_${u}" value="${d["재료비율"]}" style="display:none" onblur="saveGoal('${u}','${sn}','재료',this.value)">
                     </div>
-                    <div class="kpi-v2 danger" onclick="${canEdit ? `edKPI('${u}','${sn}','WHI')` : ''}">
-                        <div class="kv2-lbl">WHI(CSI) ${canEdit ? '<span class="kpi-pen">✏️</span>' : ''}</div>
-                        <div class="kv2-val" id="gv_WHI_${u}" ondblclick="${canEdit ? `edKPI('${u}','${sn}','WHI')` : ''}">${f(d["WHI점수"])}</div>
+                    <div class="kpi-v2 danger" onclick="toggleGoalEdit('${u}')">
+                        <div class="kv2-lbl">WHI(CSI) <span class="kpi-pen">✏️</span></div>
+                        <div class="kv2-val" id="gv_WHI_${u}">${f(d["WHI점수"])}</div>
+                        <input type="number" class="goal-input" id="gi_WHI_${u}" value="${d["WHI점수"]}" style="display:none" onblur="saveGoal('${u}','${sn}','WHI',this.value)">
                     </div>
                 </div>
                 <div class="sec-title">🍽️ 인시당 식수</div>
                 <div class="tbl-wrap"><table><thead><tr><th>끼니</th><th>D/I</th><th>T/O</th><th>합계</th><th>투입</th><th>인시당</th></tr></thead><tbody>${gR}</tbody></table></div>
                 ${cB}
-                <div style="text-align:center;font-size:10px;color:var(--dim);margin-top:10px">📝 수치 터치 시 직접 수정 가능</div>
+                <div id="goal-edit-hint-${u}" style="text-align:center;font-size:10px;color:var(--dim);margin-top:10px">📝 수치 터치 시 직접 수정 가능</div>
             </div>
             </div></div>`;
     }).join("");

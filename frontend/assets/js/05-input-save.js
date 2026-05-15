@@ -68,16 +68,6 @@ window.saveGoal = function (u, sn, key, val) {
     so();
 };
 
-window.edKPI = function (u, sn, key) {
-    const d = D.find(x => x["사업장명"] === sn);
-    const km = { '매출': '도전매출', '이익': '도전영업이익', '재료': '재료비율', 'WHI': 'WHI점수' };
-    const cur = d ? d[km[key]] : "";
-    const val = prompt(`[${key}] 수정\n현재값: ${f(cur)}\n변경할 수치를 입력하세요.`, cur);
-    if (val !== null) {
-        saveGoal(u, sn, key, val);
-    }
-};
-
 window.updateIntensity = function (u, sn) {
     const d = D.find(x => x["사업장명"] === sn);
     if (!d) return;
