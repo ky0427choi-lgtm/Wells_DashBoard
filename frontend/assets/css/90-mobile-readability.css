@@ -485,6 +485,39 @@ td:first-child {
         height: 42px !important;
         font-weight: 800 !important;
     }
+
+    /* Quick Event Tags */
+    .tag-row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 15px;
+    }
+    .event-tag {
+        padding: 8px 14px;
+        border-radius: 20px;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        background: rgba(255, 255, 255, .05);
+        border: 1px solid rgba(148, 163, 184, .2);
+        color: var(--muted);
+        transition: all .2s;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+    .event-tag.active {
+        background: rgba(56, 189, 248, .15);
+        border-color: var(--accent);
+        color: var(--accent);
+        box-shadow: 0 0 12px rgba(56, 189, 248, .2);
+    }
+    .tag-dec.active {
+        background: rgba(239, 68, 68, .15);
+        border-color: #fca5a5;
+        color: #fca5a5;
+    }
 }
 
 @media (max-width: 340px) {

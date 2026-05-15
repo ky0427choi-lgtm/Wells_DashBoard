@@ -174,6 +174,9 @@ window.svRec = async function (btnOrU, uOrSn, snOrRg, rg) {
     if (btnOrU && btnOrU.nodeType === 1) { btn = btnOrU; }
     else { u = btnOrU; sn = uOrSn; region = snOrRg; }
 
+    const tagEls = document.querySelectorAll(`#tags_${u} .event-tag.active`);
+    const tags = Array.from(tagEls).map(el => el.innerText.trim()).join(", ");
+
     const p = {
         tk: TK, date: document.getElementById(`fd_${u}`).value, siteName: sn, region: region,
         DI_조식: Number(document.getElementById(`fd1_${u}`).value || 0),
@@ -184,10 +187,10 @@ window.svRec = async function (btnOrU, uOrSn, snOrRg, rg) {
         TO_중식: Number(document.getElementById(`ft2_${u}`).value || 0),
         TO_석식: Number(document.getElementById(`ft3_${u}`).value || 0),
         TO_야식: Number(document.getElementById(`ft4_${u}`).value || 0),
-        도전매출: Number(document.getElementById(`fsl_${u}`).value || 0),
-        재료비: Number(document.getElementById(`fmt_${u}`).value || 0),
-        식사특이사항: document.getElementById(`fn1_${u}`).value || "",
-        기타특이사항: document.getElementById(`fn2_${u}`).value || ""
+        도전매출: 0, // 별도 관리 항목으로 0 처리
+        재료비: 0,   // 별도 관리 항목으로 0 처리
+        식사특이사항: tags, // 선택된 태그들 저장
+        기타특이사항: ""
     };
 
     // 로컬 데이터 선반영

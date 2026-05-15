@@ -161,13 +161,15 @@ function render() {
                     <div class="ff"><label>야</label><input type="number" id="ft4_${u}" placeholder="0"></div>
                 </div>
 
-                <div class="fg" style="margin-bottom:12px">
-                    <div class="ff"><label>도전매출</label><input type="number" id="fsl_${u}" placeholder="0"></div>
-                    <div class="ff"><label>재료비(%)</label><input type="number" id="fmt_${u}" placeholder="예: 31.5"></div>
+                <div style="font-size:11px; color:var(--muted); margin-bottom:10px">실적 변동 요인 (중복 선택 가능)</div>
+                <div class="tag-row" id="tags_${u}">
+                    <div class="event-tag tag-dec" onclick="this.classList.toggle('active')">패밀리데이 🏠</div>
+                    <div class="event-tag tag-dec" onclick="this.classList.toggle('active')">사업장소독 🧼</div>
+                    <div class="event-tag tag-dec" onclick="this.classList.toggle('active')">조업단축 📉</div>
+                    <div class="event-tag tag-inc" onclick="this.classList.toggle('active')">월간특식 🍱</div>
+                    <div class="event-tag tag-inc" onclick="this.classList.toggle('active')">이벤트 🎁</div>
+                    <div class="event-tag tag-inc" onclick="this.classList.toggle('active')">특근발생 📈</div>
                 </div>
-
-                <div class="ff" style="margin-bottom:12px"><label>식사 특이</label><textarea id="fn1_${u}" rows="2" placeholder="식사 관련 특이사항"></textarea></div>
-                <div class="ff" style="margin-bottom:12px"><label>기타 특이</label><textarea id="fn2_${u}" rows="2" placeholder="기타 특이사항"></textarea></div>
 
                 <div id="fm_${u}" style="text-align:center; font-size:12px; margin-bottom:10px"></div>
                 <button class="sv-btn green" style="width:100%" onclick="svRec(this,'${u}','${sn}','${rg}')">💾 저장</button>
