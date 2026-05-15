@@ -1,0 +1,47 @@
+    <style>
+        :root {
+            --bg: #0a0f1e;
+            --surface: #111827;
+            --card: rgba(17, 24, 39, .85);
+            --card-hover: rgba(23, 32, 52, .9);
+            --border: rgba(148, 163, 184, .08);
+            --border-hover: rgba(56, 189, 248, .2);
+            --accent: #38bdf8;
+            --accent2: #818cf8;
+            --accent3: #a78bfa;
+            --success: #34d399;
+            --warning: #fbbf24;
+            --danger: #f87171;
+            --text: #f1f5f9;
+            --muted: #64748b;
+            --dim: #475569;
+            --r: 16px;
+            --r2: 12px;
+            --shadow: 0 8px 32px rgba(0, 0, 0, .4);
+            --glow: 0 0 20px rgba(56, 189, 248, .08);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-font-smoothing: antialiased
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Inter', 'Malgun Gothic', sans-serif;
+            min-height: 100vh;
+            min-height: 100dvh;
+            overflow-x: hidden
+        }
+
+        input,
+        textarea,
+        select,
+        button {
+            font-family: inherit;
+            user-select: auto !important;
+            -webkit-user-select: auto !important
+        }

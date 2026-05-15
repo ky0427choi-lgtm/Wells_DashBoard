@@ -1,0 +1,170 @@
+        /* ===== SPLASH ===== */
+        #splash {
+            position: fixed;
+            inset: 0;
+            background: var(--bg);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000
+        }
+
+        .sp-ring {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255, 255, 255, .06);
+            border-top: 3px solid var(--accent);
+            border-radius: 50%;
+            animation: spin .7s linear infinite
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg)
+            }
+        }
+
+        /* ===== DASHBOARD ===== */
+        #dashboard {
+            display: none;
+            opacity: 0;
+            flex-direction: column;
+            width: 100%;
+            overflow-y: auto;
+            transition: opacity .4s
+        }
+
+        header {
+            position: sticky;
+            top: 0;
+            z-index: 200;
+            background: rgba(10, 15, 30, .92);
+            border-bottom: 1px solid var(--border);
+            backdrop-filter: blur(20px) saturate(1.2);
+            padding: env(safe-area-inset-top, 12px) 20px 14px
+        }
+
+        .header-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            gap: 8px;
+            min-width: 0
+        }
+
+        .header-top>div:first-child {
+            min-width: 0;
+            flex: 1 1 0;
+            overflow: hidden
+        }
+
+        .header-top h1 {
+            font-size: clamp(12px, 3.8vw, 18px);
+            font-weight: 900;
+            letter-spacing: -.5px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            background: linear-gradient(90deg, var(--accent), var(--accent2));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent
+        }
+
+        #lastUpdate {
+            font-size: 10px;
+            color: var(--dim);
+            font-weight: 700;
+            margin-top: 3px
+        }
+
+        /* 권한 배지 */
+        #role-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 10px;
+            font-weight: 800;
+            margin-top: 4px;
+            border: 1px solid
+        }
+
+        .hdr-btns {
+            display: flex;
+            gap: 6px
+        }
+
+        .hdr-btn {
+            height: 34px;
+            padding: 0 12px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, .03);
+            color: var(--text);
+            font-size: 12px;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all .2s;
+            display: flex;
+            align-items: center;
+            gap: 4px
+        }
+
+        .hdr-btn:hover {
+            border-color: var(--accent);
+            background: rgba(56, 189, 248, .06)
+        }
+
+        .hdr-btn.accent {
+            border-color: rgba(56, 189, 248, .2);
+            color: var(--accent)
+        }
+
+        .filter-row {
+            display: flex;
+            gap: 6px;
+            overflow-x: auto;
+            scrollbar-width: none;
+            padding-bottom: 2px
+        }
+
+        .filter-row::-webkit-scrollbar {
+            display: none
+        }
+
+        .chip {
+            padding: 7px 14px;
+            border-radius: 999px;
+            border: 1.5px solid rgba(148, 163, 184, .1);
+            background: rgba(255, 255, 255, .02);
+            color: var(--dim);
+            font-weight: 800;
+            font-size: 12px;
+            white-space: nowrap;
+            cursor: pointer;
+            transition: all .25s
+        }
+
+        .chip:hover {
+            border-color: rgba(56, 189, 248, .3);
+            color: var(--text)
+        }
+
+        .chip.active {
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            color: #fff;
+            border-color: transparent;
+            box-shadow: 0 2px 12px rgba(56, 189, 248, .2)
+        }
+
+        main {
+            padding: 16px;
+            display: grid;
+            gap: 14px;
+            max-width: 580px;
+            margin: 0 auto;
+            width: 100%
+        }
