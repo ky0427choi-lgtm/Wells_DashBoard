@@ -67,7 +67,7 @@ function render() {
     g.innerHTML = fd.map((d, i) => {
         const sn = d["사업장명"], rg = d["지역"], u = sn.replace(/[^a-zA-Z0-9가-힣]/g, '') + '_' + i;
         const gS = m => n(d["DI_" + m]) + n(d["TO_" + m]);
-        const st = (typeof gSt === "function") ? gSt(sn).goal : 0;
+        const st = n(d["영양사"]) + n(d["조리사"]) + n(d["웰프로_주"]) + n(d["웰프로_야"]);
         const seats = n(d["좌석수"]), seats_v = seats || 1;
         const diMid = n(d["DI_중식"]), toMid = n(d["TO_중식"]);
         const corners = n(d["코너수"]) || 1, toCorners_v = n(d["TO_코너수"]) || corners || 1;
@@ -78,7 +78,7 @@ function render() {
         
         let gR = ''; meals.forEach(m => { 
             const tot = n(d["DI_"+m]) + n(d["TO_"+m]);
-            const ms = (typeof gMS === "function") ? gMS(sn, m) : 0;
+            const ms = st; // 전체 근무인원을 투입인원으로 사용
             const ps = ms > 0 ? (tot / ms).toFixed(1) : "0.0";
             gR += `<tr><td>${m}</td><td>${f(d["DI_"+m])}</td><td>${f(d["TO_"+m])}</td><td>${f(tot)}</td><td>${ms}</td><td style="color:var(--accent);font-weight:900">${ps}</td></tr>`;
         });
@@ -142,7 +142,19 @@ function render() {
                 <tr><td>D/I</td><td>${f(d["DI_조식(주말)"])}</td><td>${f(d["DI_중식(주말)"])}</td><td>${f(d["DI_석식(주말)"])}</td><td>${f(d["DI_야식(주말)"])}</td></tr>
                 <tr><td>T/O</td><td>${f(d["TO_조식(주말)"])}</td><td>${f(d["TO_중식(주말)"])}</td><td>${f(d["TO_석식(주말)"])}</td><td>${f(d["TO_야식(주말)"])}</td></tr>
             </tbody></table></div></div>
-            <div id="p_goal_${u}" class="ipanel"><div class="sec-title">🎯 도전 목표</div><div class="tbl-wrap"><table><tbody><tr><td>도전매출</td><td>${f(d["도전매출"])}</td></tr></tbody></table></div>${cB}</div>
+            <div id="p_goal_${u}" class="ipanel">
+                <div class="sec-title">🎯 도전 목표 & KPI</div>
+                <div class="kpi-row-v2" style="margin-bottom:18px">
+                    <div class="kpi-v2 accent"><div class="kv2-lbl">도전매출 ${canEdit ? '✏️' : ''}</div><div class="kv2-val" id="gv_매출_${u}" onclick="${canEdit ? `edKPI('${u}','${sn}','매출')` : ''}">${f(d["도전매출"])}</div></div>
+                    <div class="kpi-v2 success"><div class="kv2-lbl">영업이익 ${canEdit ? '✏️' : ''}</div><div class="kv2-val" id="gv_이익_${u}" onclick="${canEdit ? `edKPI('${u}','${sn}','이익')` : ''}">${f(d["도전영업이익"])}</div></div>
+                    <div class="kpi-v2 warning"><div class="kv2-lbl">재료비(%) ${canEdit ? '✏️' : ''}</div><div class="kv2-val" id="gv_재료_${u}" onclick="${canEdit ? `edKPI('${u}','${sn}','재료')` : ''}">${f(d["재료비율"])}</div></div>
+                    <div class="kpi-v2 danger"><div class="kv2-lbl">WHI(CSI) ${canEdit ? '✏️' : ''}</div><div class="kv2-val" id="gv_WHI_${u}" onclick="${canEdit ? `edKPI('${u}','${sn}','WHI')` : ''}">${f(d["WHI점수"])}</div></div>
+                </div>
+                <div class="sec-title">🍽️ 인시당 식수</div>
+                <div class="tbl-wrap"><table><thead><tr><th>끼니</th><th>D/I</th><th>T/O</th><th>합계</th><th>투입</th><th>인시당</th></tr></thead><tbody>${gR}</tbody></table></div>
+                ${cB}
+                <div style="text-align:center;font-size:10px;color:var(--dim);margin-top:10px">📝 수치 터치 시 직접 수정 가능</div>
+            </div>
             </div></div>`;
     }).join("");
 }
