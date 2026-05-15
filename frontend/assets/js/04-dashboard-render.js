@@ -161,12 +161,19 @@ function render() {
                     <div class="ff"><label>야</label><input type="number" id="ft4_${u}" placeholder="0"></div>
                 </div>
 
-                <div style="font-size:11px; color:var(--muted); margin-bottom:10px">실적 변동 요인 (중복 선택 가능 / ✏️ 터치시 명칭 수정)</div>
+                <div class="tag-header">
+                    <div style="font-size:11px; color:var(--muted)">실적 변동 요인 ${window.isTagEditing ? '(이름 수정 중...)' : '(중복 선택 가능)'}</div>
+                    <div class="tag-edit-btn ${window.isTagEditing ? 'active' : ''}" onclick="toggleTagEditMode(event, '${u}')">
+                        ${window.isTagEditing ? '✅ 저장하기' : '⚙️ 태그 관리'}
+                    </div>
+                </div>
                 <div class="tag-row" id="tags_${u}">
                     ${getTags().map((t, idx) => `
-                        <div class="event-tag tag-${t.type}" onclick="this.classList.toggle('active')">
-                            ${t.text}
-                            <span style="margin-left:6px; font-size:10px; opacity:0.5;" onclick="editTag(event, ${idx})">✏️</span>
+                        <div class="event-tag tag-${t.type} ${window.isTagEditing ? 'editing' : ''}" 
+                             ${!window.isTagEditing ? `onclick="this.classList.toggle('active')"` : ''}>
+                            ${window.isTagEditing 
+                                ? `<input type="text" id="ti_${idx}_${u}" class="tag-edit-input" value="${t.text}" onclick="event.stopPropagation()">`
+                                : t.text}
                         </div>
                     `).join("")}
                 </div>

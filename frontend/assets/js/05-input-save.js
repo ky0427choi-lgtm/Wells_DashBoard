@@ -234,13 +234,20 @@ window.getTags = function() {
     } catch (e) { return DEFAULT_TAGS; }
 };
 
-window.editTag = function(e, index) {
-    e.stopPropagation(); // 태그 토글 방지
-    const tags = window.getTags();
-    const newText = prompt("태그 명칭 수정", tags[index].text);
-    if (newText && newText.trim()) {
-        tags[index].text = newText.trim();
+window.isTagEditing = false;
+window.toggleTagEditMode = function (e, u) {
+    if (e) e.stopPropagation();
+    if (window.isTagEditing) {
+        // 저장 로직: 현재 인풋창에 입력된 값들을 태그 데이터에 반영
+        const tags = window.getTags();
+        tags.forEach((t, idx) => {
+            const inp = document.getElementById(`ti_${idx}_${u}`);
+            if (inp && inp.value.trim()) t.text = inp.value.trim();
+        });
         localStorage.setItem("WS_TAGS", JSON.stringify(tags));
-        render(); // 화면 갱신
+        window.isTagEditing = false;
+    } else {
+        window.isTagEditing = true;
     }
+    render(); // UI 갱신
 };

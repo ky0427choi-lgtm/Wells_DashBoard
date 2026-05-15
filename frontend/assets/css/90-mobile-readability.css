@@ -518,6 +518,41 @@ td:first-child {
         border-color: #fca5a5;
         color: #fca5a5;
     }
+
+    /* Tag Management UI */
+    .tag-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+    .tag-edit-btn {
+        font-size: 11px;
+        padding: 4px 10px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, .08);
+        border: 1px solid var(--border);
+        color: var(--muted);
+        cursor: pointer;
+    }
+    .tag-edit-btn.active {
+        background: var(--accent);
+        color: #fff;
+        border: none;
+        font-weight: 800;
+    }
+    .tag-edit-input {
+        background: transparent;
+        border: none;
+        color: inherit;
+        font-family: inherit;
+        font-size: inherit;
+        font-weight: inherit;
+        width: 100%;
+        text-align: center;
+        outline: none;
+        padding: 0;
+    }
 }
 
 @media (max-width: 340px) {
