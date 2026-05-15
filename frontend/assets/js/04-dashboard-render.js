@@ -75,19 +75,19 @@ function render() {
         const re = re_raw > 0 ? re_raw : (diMid / seats_v), ri = ri_raw > 0 ? ri_raw : ((diMid + (toMid / toCorners_v)) / seats_v);
         const reAuto = re_raw === 0 && seats_v > 0 && diMid > 0, riAuto = ri_raw === 0 && seats_v > 0 && (diMid + toMid) > 0;
         const o = OV[sn] || {}, meals = ["조식", "중식", "석식", "야식"];
-        
-        let gR = ''; meals.forEach(m => { 
-            const tot = n(d["DI_"+m]) + n(d["TO_"+m]);
+
+        let gR = ''; meals.forEach(m => {
+            const tot = n(d["DI_" + m]) + n(d["TO_" + m]);
             const ms = st; // 전체 근무인원을 투입인원으로 사용
             const ps = ms > 0 ? (tot / ms).toFixed(1) : "0.0";
-            gR += `<tr><td>${m}</td><td>${f(d["DI_"+m])}</td><td>${f(d["TO_"+m])}</td><td>${f(tot)}</td><td>${ms}</td><td style="color:var(--accent);font-weight:900">${ps}</td></tr>`;
+            gR += `<tr><td>${m}</td><td>${f(d["DI_" + m])}</td><td>${f(d["TO_" + m])}</td><td>${f(tot)}</td><td>${ms}</td><td style="color:var(--accent);font-weight:900">${ps}</td></tr>`;
         });
 
         const rS = D.filter(x => x["지역"] === rg), mxL = Math.max(...rS.map(x => n(x["DI_중식"]) + n(x["TO_중식"])));
         let cB = ''; if (rS.length > 1) { cB = `<div class="sec-title">📊 ${rg} 중식 비교</div>`; rS.forEach(r => { const l = n(r["DI_중식"]) + n(r["TO_중식"]), p = mxL > 0 ? (l / mxL * 100) : 0, c = r["사업장명"] === sn; cB += `<div class="ch-bar"><div class="ch-name" style="${c ? 'color:var(--accent)' : ''}">${r["사업장명"]}</div><div class="ch-track"><div class="ch-fill" style="width:${p}%;background:${c ? 'linear-gradient(90deg,var(--accent),var(--accent2))' : 'rgba(100,116,139,.4)'}">${f(l)}</div></div></div>`; }); }
         const eF = meals.map(m => `<div class="ff"><label>${m} 평일</label><input type="number" id="ov_${u}_${m}_평일" value="${o[m + '_평일'] || ''}"></div><div class="ff"><label>${m} 주말</label><input type="number" id="ov_${u}_${m}_주말" value="${o[m + '_주말'] || ''}"></div>`).join('');
 
-        const alert = (typeof getAlertStatus === "function") ? getAlertStatus(sn) : {trigger: false};
+        const alert = (typeof getAlertStatus === "function") ? getAlertStatus(sn) : { trigger: false };
         let alertBanner = '', ledDot = '';
         if (alert.trigger) {
             if (["M", "A"].includes(USER_ROLE)) ledDot = `<span class="led-red" title="${alert.msg}">🔴</span>`;
@@ -145,10 +145,22 @@ function render() {
             <div id="p_goal_${u}" class="ipanel">
                 <div class="sec-title">🎯 도전 목표 & KPI</div>
                 <div class="kpi-row-v2" style="margin-bottom:18px">
-                    <div class="kpi-v2 accent"><div class="kv2-lbl">도전매출 ${canEdit ? '✏️' : ''}</div><div class="kv2-val" id="gv_매출_${u}" onclick="${canEdit ? `edKPI('${u}','${sn}','매출')` : ''}">${f(d["도전매출"])}</div></div>
-                    <div class="kpi-v2 success"><div class="kv2-lbl">영업이익 ${canEdit ? '✏️' : ''}</div><div class="kv2-val" id="gv_이익_${u}" onclick="${canEdit ? `edKPI('${u}','${sn}','이익')` : ''}">${f(d["도전영업이익"])}</div></div>
-                    <div class="kpi-v2 warning"><div class="kv2-lbl">재료비(%) ${canEdit ? '✏️' : ''}</div><div class="kv2-val" id="gv_재료_${u}" onclick="${canEdit ? `edKPI('${u}','${sn}','재료')` : ''}">${f(d["재료비율"])}</div></div>
-                    <div class="kpi-v2 danger"><div class="kv2-lbl">WHI(CSI) ${canEdit ? '✏️' : ''}</div><div class="kv2-val" id="gv_WHI_${u}" onclick="${canEdit ? `edKPI('${u}','${sn}','WHI')` : ''}">${f(d["WHI점수"])}</div></div>
+                    <div class="kpi-v2 accent" onclick="${canEdit ? `edKPI('${u}','${sn}','매출')` : ''}">
+                        <div class="kv2-lbl">도전매출 ${canEdit ? '<span class="kpi-pen">✏️</span>' : ''}</div>
+                        <div class="kv2-val" id="gv_매출_${u}" ondblclick="${canEdit ? `edKPI('${u}','${sn}','매출')` : ''}">${f(d["도전매출"])}</div>
+                    </div>
+                    <div class="kpi-v2 success" onclick="${canEdit ? `edKPI('${u}','${sn}','이익')` : ''}">
+                        <div class="kv2-lbl">영업이익 ${canEdit ? '<span class="kpi-pen">✏️</span>' : ''}</div>
+                        <div class="kv2-val" id="gv_이익_${u}" ondblclick="${canEdit ? `edKPI('${u}','${sn}','이익')` : ''}">${f(d["도전영업이익"])}</div>
+                    </div>
+                    <div class="kpi-v2 warning" onclick="${canEdit ? `edKPI('${u}','${sn}','재료')` : ''}">
+                        <div class="kv2-lbl">재료비(%) ${canEdit ? '<span class="kpi-pen">✏️</span>' : ''}</div>
+                        <div class="kv2-val" id="gv_재료_${u}" ondblclick="${canEdit ? `edKPI('${u}','${sn}','재료')` : ''}">${f(d["재료비율"])}</div>
+                    </div>
+                    <div class="kpi-v2 danger" onclick="${canEdit ? `edKPI('${u}','${sn}','WHI')` : ''}">
+                        <div class="kv2-lbl">WHI(CSI) ${canEdit ? '<span class="kpi-pen">✏️</span>' : ''}</div>
+                        <div class="kv2-val" id="gv_WHI_${u}" ondblclick="${canEdit ? `edKPI('${u}','${sn}','WHI')` : ''}">${f(d["WHI점수"])}</div>
+                    </div>
                 </div>
                 <div class="sec-title">🍽️ 인시당 식수</div>
                 <div class="tbl-wrap"><table><thead><tr><th>끼니</th><th>D/I</th><th>T/O</th><th>합계</th><th>투입</th><th>인시당</th></tr></thead><tbody>${gR}</tbody></table></div>
@@ -163,5 +175,5 @@ window.tp = function (u, t) { ['perf', 'wknd', 'goal', 'edit', 'seat'].forEach(p
 
 /* svRec 플레이스홀더: 05-input-save.js에서 실제 구현됨 */
 if (typeof window.svRec !== "function") {
-    window.svRec = function() { console.warn("svRec is not ready."); };
+    window.svRec = function () { console.warn("svRec is not ready."); };
 }

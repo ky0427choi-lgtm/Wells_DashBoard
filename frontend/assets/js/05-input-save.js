@@ -19,73 +19,83 @@ window.svSeat = async function (u, sn) {
     } catch (e) { console.warn('좌석수 시트 저장 실패:', e.message); }
 };
 
-window.svEdit = function (u, sn) { 
+window.svEdit = function (u, sn) {
     OV[sn] = OV[sn] || {};
-    ['영양사', '조리사', '웰프로_주', '웰프로_야'].forEach(k => { 
-        const v = document.getElementById(`ov_${u}_${k}`).value; 
-        if (v) OV[sn][k] = Number(v); 
-        else delete OV[sn][k]; 
+    ['영양사', '조리사', '웰프로_주', '웰프로_야'].forEach(k => {
+        const v = document.getElementById(`ov_${u}_${k}`).value;
+        if (v) OV[sn][k] = Number(v);
+        else delete OV[sn][k];
     });
-    ["조식", "중식", "석식", "야식"].forEach(m => { 
-        ["평일", "주말", "실투입"].forEach(t => { 
-            const el = document.getElementById(`ov_${u}_${m}_${t}`); 
-            if (!el) return; 
-            const v = el.value; 
-            if (v) OV[sn][m + '_' + t] = Number(v); 
-            else delete OV[sn][m + '_' + t]; 
-        }); 
-    }); 
-    so(); 
-    render(); 
+    ["조식", "중식", "석식", "야식"].forEach(m => {
+        ["평일", "주말", "실투입"].forEach(t => {
+            const el = document.getElementById(`ov_${u}_${m}_${t}`);
+            if (!el) return;
+            const v = el.value;
+            if (v) OV[sn][m + '_' + t] = Number(v);
+            else delete OV[sn][m + '_' + t];
+        });
+    });
+    so();
+    render();
 };
 
-window.toggleGoalEdit = function (u) { 
-    const keys = ['매출', '이익', '재료', 'WHI']; 
-    const hint = document.getElementById(`goal-edit-hint-${u}`); 
-    const isEditing = document.getElementById(`gi_매출_${u}`).style.display !== 'none'; 
-    keys.forEach(k => { 
-        const inp = document.getElementById(`gi_${k}_${u}`); 
-        const val = document.getElementById(`gv_${k}_${u}`); 
-        if (inp && val) { 
-            inp.style.display = isEditing ? 'none' : 'block'; 
-            val.style.display = isEditing ? 'block' : 'none'; 
-        } 
-    }); 
-    if (hint) hint.textContent = isEditing ? '📝 수치 터치 시 직접 수정 가능' : '✅ 수정 중 — 값 입력 후 다른 곳 터치'; 
+window.toggleGoalEdit = function (u) {
+    const keys = ['매출', '이익', '재료', 'WHI'];
+    const hint = document.getElementById(`goal-edit-hint-${u}`);
+    const isEditing = document.getElementById(`gi_매출_${u}`).style.display !== 'none';
+    keys.forEach(k => {
+        const inp = document.getElementById(`gi_${k}_${u}`);
+        const val = document.getElementById(`gv_${k}_${u}`);
+        if (inp && val) {
+            inp.style.display = isEditing ? 'none' : 'block';
+            val.style.display = isEditing ? 'block' : 'none';
+        }
+    });
+    if (hint) hint.textContent = isEditing ? '📝 수치 터치 시 직접 수정 가능' : '✅ 수정 중 — 값 입력 후 다른 곳 터치';
 };
 
-window.saveGoal = function (u, sn, key, val) { 
-    OV[sn] = OV[sn] || {}; 
-    const km = { '매출': 'goal_매출', '이익': 'goal_이익', '재료': 'goal_재료', 'WHI': 'goal_WHI' }, 
-          cm = { '매출': 'var(--accent)', '이익': 'var(--success)', '재료': 'var(--warning)', 'WHI': 'var(--accent3)' }; 
-    if (val) { 
-        OV[sn][km[key]] = Number(val); 
-        const el = document.getElementById(`gv_${key}_${u}`); 
-        if (el) { el.style.color = cm[key]; el.textContent = Number(val).toLocaleString(); } 
-    } else { 
-        delete OV[sn][km[key]]; 
-    } 
-    so(); 
+window.saveGoal = function (u, sn, key, val) {
+    OV[sn] = OV[sn] || {};
+    const km = { '매출': 'goal_매출', '이익': 'goal_이익', '재료': 'goal_재료', 'WHI': 'goal_WHI' },
+        cm = { '매출': 'var(--accent)', '이익': 'var(--success)', '재료': 'var(--warning)', 'WHI': 'var(--accent3)' };
+    if (val) {
+        OV[sn][km[key]] = Number(val);
+        const el = document.getElementById(`gv_${key}_${u}`);
+        if (el) { el.style.color = cm[key]; el.textContent = Number(val).toLocaleString(); }
+    } else {
+        delete OV[sn][km[key]];
+    }
+    so();
 };
 
-window.updateIntensity = function (u, sn) { 
-    const d = D.find(x => x["사업장명"] === sn); 
-    if (!d) return; 
-    const meals = ["조식", "중식", "석식", "야식"]; 
-    let totalFood = 0, totalStaff = 0; 
-    meals.forEach(m => { 
-        const food = n(d["DI_" + m]) + n(d["TO_" + m]); 
-        totalFood += food; 
-        const el = document.getElementById(`ov_${u}_${m}_실투입`); 
-        const st = el && el.value ? Number(el.value) : gMS(sn, m); 
-        totalStaff += st; 
-    }); 
-    const avg = totalStaff > 0 ? totalFood / (totalStaff / meals.length) : 0; 
-    const pct = Math.min(avg / 130 * 100, 100); 
-    const col = avg >= 95 ? "var(--danger)" : avg >= 80 ? "var(--warning)" : "var(--success)"; 
-    const ib = document.getElementById(`ib_${u}`), iv = document.getElementById(`iv_${u}`); 
-    if (ib) { ib.style.width = pct + "%"; ib.style.background = col; } 
-    if (iv) { iv.style.color = col; iv.textContent = avg.toFixed(1) + "식/인"; } 
+window.edKPI = function (u, sn, key) {
+    const d = D.find(x => x["사업장명"] === sn);
+    const km = { '매출': '도전매출', '이익': '도전영업이익', '재료': '재료비율', 'WHI': 'WHI점수' };
+    const cur = d ? d[km[key]] : "";
+    const val = prompt(`[${key}] 수정\n현재값: ${f(cur)}\n변경할 수치를 입력하세요.`, cur);
+    if (val !== null) {
+        saveGoal(u, sn, key, val);
+    }
+};
+
+window.updateIntensity = function (u, sn) {
+    const d = D.find(x => x["사업장명"] === sn);
+    if (!d) return;
+    const meals = ["조식", "중식", "석식", "야식"];
+    let totalFood = 0, totalStaff = 0;
+    meals.forEach(m => {
+        const food = n(d["DI_" + m]) + n(d["TO_" + m]);
+        totalFood += food;
+        const el = document.getElementById(`ov_${u}_${m}_실투입`);
+        const st = el && el.value ? Number(el.value) : gMS(sn, m);
+        totalStaff += st;
+    });
+    const avg = totalStaff > 0 ? totalFood / (totalStaff / meals.length) : 0;
+    const pct = Math.min(avg / 130 * 100, 100);
+    const col = avg >= 95 ? "var(--danger)" : avg >= 80 ? "var(--warning)" : "var(--success)";
+    const ib = document.getElementById(`ib_${u}`), iv = document.getElementById(`iv_${u}`);
+    if (ib) { ib.style.width = pct + "%"; ib.style.background = col; }
+    if (iv) { iv.style.color = col; iv.textContent = avg.toFixed(1) + "식/인"; }
 };
 
 function getRec() { try { return JSON.parse(localStorage.getItem("WS_REC") || "[]") } catch (e) { return [] } }
@@ -171,7 +181,7 @@ window.loadPastRec = function (u, sn, dateVal) {
 
 window.svRec = async function (btnOrU, uOrSn, snOrRg, rg) {
     let btn = null, u = uOrSn, sn = snOrRg, region = rg;
-    if (btnOrU && btnOrU.nodeType === 1) { btn = btnOrU; } 
+    if (btnOrU && btnOrU.nodeType === 1) { btn = btnOrU; }
     else { u = btnOrU; sn = uOrSn; region = snOrRg; }
 
     const p = {
@@ -189,7 +199,7 @@ window.svRec = async function (btnOrU, uOrSn, snOrRg, rg) {
         식사특이사항: document.getElementById(`fn1_${u}`).value || "",
         기타특이사항: document.getElementById(`fn2_${u}`).value || ""
     };
-    
+
     // 로컬 데이터 선반영
     let arr = getRec();
     const key = `${p.date}||${p.siteName}`;

@@ -10,7 +10,8 @@ main {
     padding: 14px 12px 24px;
     gap: 16px;
     max-width: 620px;
-    margin: 0 auto; /* 중앙 정렬 */
+    margin: 0 auto;
+    /* 중앙 정렬 */
 }
 
 header {
@@ -78,7 +79,10 @@ header {
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
 }
-.filter-row::-webkit-scrollbar { display: none; }
+
+.filter-row::-webkit-scrollbar {
+    display: none;
+}
 
 .chip {
     padding: 8px 15px;
@@ -356,7 +360,10 @@ td:first-child {
     margin-bottom: 14px;
     display: none;
 }
-.ipanel.show { display: block; }
+
+.ipanel.show {
+    display: block;
+}
 
 .sec-title {
     font-size: 13px;
@@ -424,6 +431,43 @@ td:first-child {
         padding: 12px 14px;
         display: flex;
         gap: 8px;
+    }
+
+    /* KPI Grid 2x2 alignment & Pen size */
+    .kpi-row-v2 {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 12px !important;
+        margin-bottom: 20px !important;
+    }
+    .kpi-v2 {
+        background: rgba(255, 255, 255, .05) !important;
+        border: 1px solid rgba(148, 163, 184, .16) !important;
+        border-radius: 18px !important;
+        padding: 18px 10px !important;
+        text-align: center;
+        transition: all .2s;
+    }
+    .kpi-v2:active {
+        transform: scale(0.96);
+        background: rgba(255, 255, 255, .1) !important;
+    }
+    .kv2-lbl {
+        font-size: 11px !important;
+        color: var(--dim) !important;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+    }
+    .kpi-pen {
+        font-size: 16px !important; /* 펜 크기 확대 */
+        opacity: 0.9;
+    }
+    .kv2-val {
+        font-size: 21px !important;
+        font-weight: 900 !important;
     }
 }
 
