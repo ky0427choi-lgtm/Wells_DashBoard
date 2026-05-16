@@ -19,3 +19,8 @@ function inten(sn) {
     const sum = r.reduce((a, b) => a + (b["DI_중식"] || 0), 0);
     return sum / r.length;
 }
+
+/* ★ v4.3: 전역 데이터 캐시 — 추이 분석 베이스라인 */
+window._gasTrendBaseline = [];
+window._gasTrendBaselineLoading = false;
+window._gasTrendBaselineLoaded = false;

@@ -34,8 +34,12 @@ function doGet(e){
   if(e.parameter.type==="monthly"){
     var uid2=chkToken(e.parameter.tk); if(!uid2)return jOut({error:"auth_expired"}); return jOut(fetchMonthlyData(uid2));
   }
+  /* ★ v4.3: AI 분석 로우 데이터 (추이 베이스라인) 조회 추가 */
+  if(e.parameter.type==="trendBaseline"){
+    var uid3=chkToken(e.parameter.tk); if(!uid3)return jOut({error:"auth_expired"}); return jOut(fetchTrendBaseline(uid3));
+  }
   if(e.parameter.tk){
-    var uid3=chkToken(e.parameter.tk); if(!uid3)return jOut({error:"auth_expired"}); return jOut(fetchDataFiltered(uid3));
+    var uid4=chkToken(e.parameter.tk); if(!uid4)return jOut({error:"auth_expired"}); return jOut(fetchDataFiltered(uid4));
   }
   return ContentService.createTextOutput("Dashboard API Running");
 }
@@ -44,6 +48,11 @@ function doPost(e){
   try{
     var p=JSON.parse(e.postData.contents);
     if(p.action==="changePw") return handleChangePw(p);
+    /* ★ v4.3: AI 분석 로우 데이터 대량 업로드 액션 추가 */
+    if(p.action==="uploadBaseline") {
+      var uid_u=chkToken(p.tk); if(!uid_u) return ContentService.createTextOutput("AuthExpired");
+      return ContentService.createTextOutput(updateTrendBaselineData(p.data));
+    }
     /* ★ [수정] 좌석/코너 저장 불일치 복구 — 좌석수, 코너수, TO_코너수 모두 실제 시트 반영 */
     if(p.action==="updateSeats") {
       var uid=chkToken(p.tk); if(!uid) return ContentService.createTextOutput("AuthExpired");

@@ -75,7 +75,30 @@ async function loadPerfFromGAS(force = false) {
             _gasPerfLoaded = true;
         }
     } catch (e) { console.error("Load failed:", e); }
+    } catch (e) { console.error("Load failed:", e); }
     finally { _gasPerfLoading = false; }
+}
+
+/**
+ * ★ v4.3: AI 분석 로우 데이터 (추이 베이스라인)를 로드합니다.
+ */
+async function loadTrendBaselineFromGAS() {
+    if (window._gasTrendBaselineLoading || window._gasTrendBaselineLoaded) return;
+    if (!TK) return;
+
+    window._gasTrendBaselineLoading = true;
+    try {
+        console.log("📡 Fetching Trend Baseline...");
+        const r = await fetch(API + "?type=trendBaseline&tk=" + TK, { redirect: "follow" });
+        const d = await r.json();
+        if (d.error === "auth_expired") return;
+        if (d.trend && Array.isArray(d.trend)) {
+            window._gasTrendBaseline = d.trend;
+            window._gasTrendBaselineLoaded = true;
+            console.log(`✅ Loaded ${d.trend.length} baseline records.`);
+        }
+    } catch (e) { console.error("Baseline Load failed:", e); }
+    finally { window._gasTrendBaselineLoading = false; }
 }
 
 function _applyPerfData(d) {
@@ -84,7 +107,13 @@ function _applyPerfData(d) {
     _gasPerfCache = perfRows;
     _gasForecastCache = (d.forecastHistory || []).map(normalizeForecastRow);
     _gasForecastAggMemo = {};
+    
+    // 로컬 스토리지에 병합하여 저장
     let currentRecs = getRec();
+    
+    // 베이스라인이 있다면 베이스라인을 기본으로 깔고 그 위에 실적 덮어쓰기
+    // (다만 로컬 스토리지 저장 용량 이슈가 있으므로 메모리 캐시 전략이 나을 수 있음)
+    
     perfRows.forEach(gasRec => {
         const key = _recKey(gasRec);
         const idx = currentRecs.findIndex(r => _recKey(r) === key);

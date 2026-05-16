@@ -149,6 +149,26 @@ function aggregateForecastByDate(siteNames, mk) {
     return agg;
 }
 
+function getForecastValueForDate(siteNames, mk, ds) {
+    const agg = aggregateForecastByDate(siteNames, mk);
+    return (agg[ds] && agg[ds].pred) ? agg[ds].pred : null;
+}
+
+function getStoredAccuracy(siteNames, mk) {
+    const agg = aggregateForecastByDate(siteNames, mk);
+    const dates = Object.keys(agg).filter(k => agg[k].hasActual).sort();
+    if (!dates.length) return null;
+    let totalError = 0, count = 0;
+    dates.forEach(d => {
+        const row = agg[d];
+        if (row.actual > 0) {
+            totalError += Math.abs(row.pred - row.actual) / row.actual;
+            count++;
+        }
+    });
+    return count > 0 ? Math.max(0, 100 - (totalError / count * 100)) : null;
+}
+
 window.loadPastRec = function (u, sn, dateVal) {
     const today = new Date().toISOString().slice(0, 10);
     const modeEl = document.getElementById(`fmode_${u}`);
