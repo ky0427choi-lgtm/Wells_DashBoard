@@ -82,13 +82,18 @@ async function loadPerfFromGAS(force = false) {
  * ★ v4.3: AI 분석 로우 데이터 (추이 베이스라인)를 로드합니다.
  */
 async function loadTrendBaselineFromGAS() {
+    // 1. 이미 로드 중이거나 로드 완료되었으면 절대 실행하지 않음 (이중 락)
     if (window._gasTrendBaselineLoading || window._gasTrendBaselineLoaded) return;
     if (!TK) return;
 
     window._gasTrendBaselineLoading = true;
     try {
-        console.log("📡 Fetching Trend Baseline...");
+        console.log("📡 Fetching Trend Baseline from Server...");
         const r = await fetch(API + "?type=trendBaseline&tk=" + TK, { redirect: "follow" });
+        
+        // 2. 응답이 정상이 아닐 경우 에러 처리
+        if (!r.ok) throw new Error(`HTTP error! status: ${r.status}`);
+        
         const d = await r.json();
         
         if (d.error === "auth_expired") {
@@ -96,18 +101,18 @@ async function loadTrendBaselineFromGAS() {
             return;
         }
 
-        // 데이터가 있든 없든 로드 시도는 완료된 것으로 간주 (무한 루프 방지)
+        // 3. 데이터 수신 성공 (데이터가 없더라도 시도 자체는 성공으로 간주하여 루프 차단)
         window._gasTrendBaseline = (d.trend && Array.isArray(d.trend)) ? d.trend : [];
         window._gasTrendBaselineLoaded = true;
         
         if (window._gasTrendBaseline.length > 0) {
-            console.log(`✅ Loaded ${window._gasTrendBaseline.length} baseline records.`);
+            console.log(`✅ Success: Loaded ${window._gasTrendBaseline.length} baseline records.`);
         } else {
-            console.warn("⚠️ Trend Baseline is empty.");
+            console.warn("⚠️ Warning: Trend Baseline dataset is empty.");
         }
     } catch (e) { 
-        console.error("Baseline Load failed:", e);
-        // 실패 시에도 일정 시간 동안은 재시도하지 않도록 플래그 유지
+        console.error("❌ Baseline Load Error:", e);
+        // 4. 에러 발생 시에도 무한 루프 방지를 위해 '로드 완료' 처리 (나중에 수동 새로고침 유도)
         window._gasTrendBaselineLoaded = true; 
     } finally { 
         window._gasTrendBaselineLoading = false; 

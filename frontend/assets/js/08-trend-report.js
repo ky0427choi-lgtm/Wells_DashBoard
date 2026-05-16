@@ -240,24 +240,32 @@ function getMergedTrendData() {
 function renderTrendReport() {
     const body = document.getElementById("trend-body");
     
-    // 1. 베이스라인 로딩 중이면 스피너 표시
-    if (window._gasTrendBaselineLoading) {
-        if (!body.innerHTML.includes("spinner")) { // 중복 innerHTML 방지
+    // 1. 베이스라인 로드 시도 (아직 로드되지 않았고 로딩 중도 아닐 때만)
+    if (!window._gasTrendBaselineLoaded && !window._gasTrendBaselineLoading) {
+        loadTrendBaselineFromGAS(); // 비동기로 호출만 하고 넘어감
+    }
+
+    // 2. 로딩 중이면 스피너 표시 후 즉시 종료 (무한 루프 방지)
+    if (window._gasTrendBaselineLoading || !window._gasTrendBaselineLoaded) {
+        if (!body.innerHTML.includes("spinner")) {
             body.innerHTML = `
                 <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:300px;color:var(--dim)">
                     <div class="spinner" style="width:30px;height:30px;border:3px solid rgba(56,189,248,.1);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite;margin-bottom:12px"></div>
                     <div style="font-size:12px;font-weight:700">AI 분석 베이스라인 로드 중...</div>
                 </div>`;
         }
-        return;
-    }
-
-    // 2. 베이스라인 로드 시도
-    if (!window._gasTrendBaselineLoaded) {
-        loadTrendBaselineFromGAS().then(() => {
-            window._mergedTrendForceRefresh = true;
-            renderTrendReport();
-        });
+        
+        // 로딩 완료 후 자동으로 다시 그려지도록 인터벌 체크 (안전 장치)
+        if (!window._trendLoadCheckTimer) {
+            window._trendLoadCheckTimer = setInterval(() => {
+                if (window._gasTrendBaselineLoaded) {
+                    clearInterval(window._trendLoadCheckTimer);
+                    window._trendLoadCheckTimer = null;
+                    window._mergedTrendForceRefresh = true;
+                    renderTrendReport();
+                }
+            }, 500);
+        }
         return;
     }
 
