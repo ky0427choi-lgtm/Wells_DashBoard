@@ -75,7 +75,6 @@ async function loadPerfFromGAS(force = false) {
             _gasPerfLoaded = true;
         }
     } catch (e) { console.error("Load failed:", e); }
-    } catch (e) { console.error("Load failed:", e); }
     finally { _gasPerfLoading = false; }
 }
 
