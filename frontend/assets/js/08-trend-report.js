@@ -203,14 +203,14 @@ window._mergedTrendCache = null; // 병합 데이터 캐시
  * ★ v4.3: 베이스라인(과거분) + 실시간 캐시(최신분) 데이터를 병합합니다.
  */
 function getMergedTrendData() {
-    // 이미 병합된 캐시가 있다면 즉시 반환 (성능 최적화)
+    // 1. 이미 병합된 캐시가 있다면 즉시 반환 (입력 없을 때 연산 0 - 정적 모니터링 모드)
     if (window._mergedTrendCache && !window._mergedTrendForceRefresh) return window._mergedTrendCache;
 
     const baseline = window._gasTrendBaseline || [];
     const recent = _gasPerfCache || [];
     const mergedMap = {};
     
-    // 1. 베이스라인 적용
+    // 2. 베이스라인 적용 (모든 과거 데이터의 근간)
     baseline.forEach(b => {
         const key = `${b.date}|${b.siteName}|${b.meal}`;
         mergedMap[key] = {
@@ -220,20 +220,29 @@ function getMergedTrendData() {
         };
     });
     
-    // 2. 실시간 최신 실적 덮어쓰기
+    // 3. 최근 실시간 데이터 병합 (최근 14일 집중 분석)
+    const today = new Date();
+    const twoWeeksAgo = new Date();
+    twoWeeksAgo.setDate(today.getDate() - 14);
+    const twoWeeksAgoStr = _toYMD(twoWeeksAgo);
+
     recent.forEach(r => {
-        ['조식', '중식', '석식', '야식'].forEach(m => {
-            const di = n(r[`DI_${m}`]);
-            const to = n(r[`TO_${m}`]);
-            if (di + to > 0) {
-                const key = `${r.date}|${r.siteName}|${m}`;
-                mergedMap[key] = { ...r, isBaseline: false };
-            }
-        });
+        // 최근 14일치이거나 베이스라인 데이터가 아닌(새로 입력된) 데이터만 병합 대상
+        if (r.date >= twoWeeksAgoStr || !r.isBaseline) {
+            ['조식', '중식', '석식', '야식'].forEach(m => {
+                const di = n(r[`DI_${m}`]);
+                const to = n(r[`TO_${m}`]);
+                if (di + to > 0) {
+                    const key = `${r.date}|${r.siteName}|${m}`;
+                    mergedMap[key] = { ...r, isBaseline: false };
+                }
+            });
+        }
     });
     
     window._mergedTrendCache = Object.values(mergedMap);
-    window._mergedTrendForceRefresh = false;
+    window._mergedTrendForceRefresh = false; // 캐시 갱신 완료
+    console.log(`📊 Static Monitor Mode: ${window._mergedTrendCache.length} rows processed.`);
     return window._mergedTrendCache;
 }
 

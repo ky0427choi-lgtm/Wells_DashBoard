@@ -226,9 +226,18 @@ window.svRec = async function (btnOrU, uOrSn, snOrRg, rg) {
     try {
         const r = await fetch(API, { method: "POST", body: JSON.stringify(p), redirect: "follow" });
         const t = await r.text();
-        if (msg) {
-            msg.style.color = t.includes("Success") ? "var(--success)" : "var(--danger)";
-            msg.innerText = t.includes("Success") ? "✅ 저장 완료" : "❌ " + t;
+        if (t.includes("Success")) {
+            if (msg) {
+                msg.style.color = "var(--success)";
+                msg.innerText = "✅ 저장 완료";
+            }
+            // 추이 분석 캐시 갱신 예약
+            window._mergedTrendForceRefresh = true;
+        } else {
+            if (msg) {
+                msg.style.color = "var(--danger)";
+                msg.innerText = "❌ " + t;
+            }
         }
     } catch (e) {
         if (msg) { msg.style.color = "var(--warning)"; msg.innerText = "⚠️ 서버 오류 (로컬 저장 완료)"; }
