@@ -85,6 +85,11 @@ function wmaForecast(dates, getMkValFn, targetDs) {
         const nextDow = nextDt.getDay();
         if (nextDow === 0 || nextDow === 6) pred = Math.round(pred * 0.85); // 공휴일 전날
     }
+    /* ★ v4.4: 환경 및 역사적 보정 계수 적용 */
+    const env = getEnvFactor(targetDs);
+    if (env.isHistHoliday) pred = Math.round(pred * 0.25); // 전년도 명절 시즌 반영
+    if (env.seasonTag.includes("혹서기")) pred = Math.round(pred * 0.92); // 무더위 식수 감소 반영
+
     return Math.max(0, pred);
 }
 
@@ -179,6 +184,30 @@ function detectSpecialMealPattern(dates, getMkValFn, wdDates) {
     });
 
     return { weekly, monthly, overallAvg, notes };
+}
+
+/**
+ * ★ v4.4: 외부 환경 요인(기온/날씨) 및 역사적 맥락 지수를 반환합니다.
+ */
+function getEnvFactor(dateStr) {
+    const d = new Date(dateStr + "T00:00:00");
+    const month = d.getMonth();
+    const mmdd = dateStr.slice(5);
+    
+    // 1. 기온 지수 (서울 월별 평년 기온 기준)
+    const avgTemps = [-2.4, 0.4, 5.7, 12.5, 17.8, 22.2, 24.9, 25.7, 21.2, 14.8, 7.2, 0.2];
+    const temp = avgTemps[month];
+    
+    // 2. 계절성 태그
+    let seasonTag = "";
+    if (month === 7) seasonTag = "☀️ 혹서기";
+    else if (month === 0 || month === 11) seasonTag = "❄️ 혹한기";
+    else if (month === 6) seasonTag = "☔ 장마철";
+
+    // 3. 역사적 명절 여부 (2025년 기준 룩업)
+    const isHistHoliday = window._historicalStats2025?.holidays[mmdd] || null;
+
+    return { temp, seasonTag, isHistHoliday };
 }
 /* ======================================================
    ★ 저조기 판단 (고정 공휴일 + 동적 검출)
@@ -512,6 +541,20 @@ function renderTabTrend(body) {
     });
     const pointColors = dates.map(d => lowDates.includes(d) ? '#fbbf24' : mkColor);
 
+    /* ★ v4.4: 전년 대비(YoY) 비교 요약 계산 */
+    let yoyHtml = "";
+    if (window._historicalStats2025 && selectedSites.length === 1) {
+        const sName = selectedSites[0];
+        const histM = new Date(dates[dates.length-1]).getMonth();
+        const histVal = window._historicalStats2025.stats[sName]?.[mk]?.[histM] || 0;
+        const currVal = normAvg;
+        if (histVal > 0) {
+            const diff = Math.round((currVal - histVal) / histVal * 100);
+            const color = diff >= 0 ? "#34d399" : "#f87171";
+            yoyHtml = `<div class="kpi-v2"><div class="kv2-lbl">전년 동월 대비</div><div class="kv2-val" style="color:${color}">${diff >= 0 ? "+" : ""}${diff}%</div><div class="kv2-sub">2025년 ${histM+1}월 기준</div></div>`;
+        }
+    }
+
     body.innerHTML = `
     <div class="fade-in" style="padding:4px 0 16px">
     ${mkFilterHTML(mk, sites, sfilt)}
@@ -521,6 +564,7 @@ function renderTabTrend(body) {
         <div class="kpi-v2 warning"><div class="kv2-lbl" style="white-space:nowrap">저조기 평균</div><div class="kv2-val" style="color:#fbbf24">${lowAvg > 0 ? lowAvg.toLocaleString() : '-'}<span style="font-size:11px;opacity:.7"> 식</span></div><div class="kv2-sub">${lowDates.length}일 해당</div></div>
         <div class="kpi-v2 danger"><div class="kv2-lbl" style="white-space:nowrap">저조기 낙폭</div><div class="kv2-val" style="color:#f87171">▼${dropPct}<span style="font-size:14px;opacity:.7">%</span></div><div class="kv2-sub">정상 대비</div></div>
         <div class="kpi-v2 ${trendPct > 0 ? 'success' : trendPct < 0 ? 'danger' : 'warning'}"><div class="kv2-lbl" style="white-space:nowrap">최근 7일 추이</div><div class="kv2-val" style="color:${trendCls}">${r7avg.toLocaleString()}<span style="font-size:11px;opacity:.7"> 식</span></div><div class="kv2-sub">${trendPct > 0 ? '↑' : '↓'} ${Math.abs(trendPct)}% vs 전체</div></div>
+        ${yoyHtml}
     </div>
     <!-- 낙폭 바 패널 -->
     <div class="ch-panel" style="margin-bottom:14px;padding:14px 16px">
@@ -658,6 +702,13 @@ function renderTabTrend(body) {
                                                         ${corrFactor ? `· <strong style="color:#f43f5e">${corrFactor} 보정 적용</strong>` : ''}
                                                     </div>`;
                                                 }
+                                                /* ★ v4.4: 환경 및 역사적 맥락 정보 추가 */
+                                                const env = getEnvFactor(clickDate);
+                                                let envHtml = `<div style="margin-top:8px;padding:8px;background:rgba(255,255,255,.03);border-radius:6px;font-size:10px;color:var(--dim)">
+                                                    🌡️ 기온: ${env.temp}℃ ${env.seasonTag ? ` | ${env.seasonTag}` : ""}
+                                                    ${env.isHistHoliday ? `<br>🗓️ 전년도 이슈: <strong style="color:#fbbf24">${env.isHistHoliday} 기간</strong>` : ""}
+                                                </div>`;
+
                                                 infoBox.innerHTML = `
                                                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
                                                         <div style="font-size:13px;font-weight:900">
@@ -668,9 +719,8 @@ function renderTabTrend(body) {
                                                     </div>
                                                     <div style="font-size:12px;font-weight:800;color:${mkColor}">
                                                         ${mk} 식수: ${isForecast ? (foreVal ? foreVal.fv.toLocaleString() : '-') : totalVal.toLocaleString()}명
-                                                        ${isForecast ? ' (추정값)' : ''}
                                                     </div>
-                                                    ${ditoHtml}${deviationNote}${wmaNote}
+                                                    ${ditoHtml}${deviationNote}${envHtml}${wmaNote}
                                                 `;
                                             } catch (err) { console.warn('chart click error:', err); }
                                         }
