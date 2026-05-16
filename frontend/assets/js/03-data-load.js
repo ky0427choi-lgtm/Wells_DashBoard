@@ -90,14 +90,28 @@ async function loadTrendBaselineFromGAS() {
         console.log("📡 Fetching Trend Baseline...");
         const r = await fetch(API + "?type=trendBaseline&tk=" + TK, { redirect: "follow" });
         const d = await r.json();
-        if (d.error === "auth_expired") return;
-        if (d.trend && Array.isArray(d.trend)) {
-            window._gasTrendBaseline = d.trend;
-            window._gasTrendBaselineLoaded = true;
-            console.log(`✅ Loaded ${d.trend.length} baseline records.`);
+        
+        if (d.error === "auth_expired") {
+            window._gasTrendBaselineLoading = false;
+            return;
         }
-    } catch (e) { console.error("Baseline Load failed:", e); }
-    finally { window._gasTrendBaselineLoading = false; }
+
+        // 데이터가 있든 없든 로드 시도는 완료된 것으로 간주 (무한 루프 방지)
+        window._gasTrendBaseline = (d.trend && Array.isArray(d.trend)) ? d.trend : [];
+        window._gasTrendBaselineLoaded = true;
+        
+        if (window._gasTrendBaseline.length > 0) {
+            console.log(`✅ Loaded ${window._gasTrendBaseline.length} baseline records.`);
+        } else {
+            console.warn("⚠️ Trend Baseline is empty.");
+        }
+    } catch (e) { 
+        console.error("Baseline Load failed:", e);
+        // 실패 시에도 일정 시간 동안은 재시도하지 않도록 플래그 유지
+        window._gasTrendBaselineLoaded = true; 
+    } finally { 
+        window._gasTrendBaselineLoading = false; 
+    }
 }
 
 function _applyPerfData(d) {

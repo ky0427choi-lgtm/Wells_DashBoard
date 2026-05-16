@@ -196,70 +196,68 @@ function isLowSeason(dateStr, normalAvg) {
     return false;
 }
 
-window._mkSel = window._mkSel || '중식';
 window._trendSiteFilter = window._trendSiteFilter || [];
+window._mergedTrendCache = null; // 병합 데이터 캐시
 
 /**
  * ★ v4.3: 베이스라인(과거분) + 실시간 캐시(최신분) 데이터를 병합합니다.
  */
 function getMergedTrendData() {
+    // 이미 병합된 캐시가 있다면 즉시 반환 (성능 최적화)
+    if (window._mergedTrendCache && !window._mergedTrendForceRefresh) return window._mergedTrendCache;
+
     const baseline = window._gasTrendBaseline || [];
     const recent = _gasPerfCache || [];
-    
-    // 맵을 사용하여 중복 제거 및 최신 데이터 우선 적용
     const mergedMap = {};
     
-    // 1. 베이스라인 적용 (날짜, 사업장, 끼니별 키 생성)
+    // 1. 베이스라인 적용
     baseline.forEach(b => {
         const key = `${b.date}|${b.siteName}|${b.meal}`;
         mergedMap[key] = {
-            date: b.date,
-            siteName: b.siteName,
-            region: b.region,
-            meal: b.meal,
-            [`DI_${b.meal}`]: b.actual, // 실제값 투영
-            [`TO_${b.meal}`]: 0,
+            date: b.date, siteName: b.siteName, region: b.region, meal: b.meal,
+            [`DI_${b.meal}`]: b.actual, [`TO_${b.meal}`]: 0,
             isBaseline: true
         };
     });
     
     // 2. 실시간 최신 실적 덮어쓰기
     recent.forEach(r => {
-        const meals = ['조식', '중식', '석식', '야식'];
-        meals.forEach(m => {
+        ['조식', '중식', '석식', '야식'].forEach(m => {
             const di = n(r[`DI_${m}`]);
             const to = n(r[`TO_${m}`]);
             if (di + to > 0) {
                 const key = `${r.date}|${r.siteName}|${m}`;
-                mergedMap[key] = {
-                    ...r,
-                    isBaseline: false
-                };
+                mergedMap[key] = { ...r, isBaseline: false };
             }
         });
     });
     
-    return Object.values(mergedMap);
+    window._mergedTrendCache = Object.values(mergedMap);
+    window._mergedTrendForceRefresh = false;
+    return window._mergedTrendCache;
 }
 
 function renderTrendReport() {
     const body = document.getElementById("trend-body");
     
-    // 1. 베이스라인 로딩 중이면 스피너 표시 (점멸 방지)
+    // 1. 베이스라인 로딩 중이면 스피너 표시
     if (window._gasTrendBaselineLoading) {
-        body.innerHTML = `
-            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:300px;color:var(--dim)">
-                <div class="spinner" style="width:30px;height:30px;border:3px solid rgba(56,189,248,.1);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite;margin-bottom:12px"></div>
-                <div style="font-size:12px;font-weight:700">AI 분석 베이스라인 로드 중...</div>
-                <div style="font-size:10px;margin-top:4px;opacity:.6">최적화된 1,500여 건의 데이터를 가져오고 있습니다</div>
-            </div>`;
+        if (!body.innerHTML.includes("spinner")) { // 중복 innerHTML 방지
+            body.innerHTML = `
+                <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:300px;color:var(--dim)">
+                    <div class="spinner" style="width:30px;height:30px;border:3px solid rgba(56,189,248,.1);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite;margin-bottom:12px"></div>
+                    <div style="font-size:12px;font-weight:700">AI 분석 베이스라인 로드 중...</div>
+                </div>`;
+        }
         return;
     }
 
-    // 2. 베이스라인이 아직 안 불렸다면 로드 시작
+    // 2. 베이스라인 로드 시도
     if (!window._gasTrendBaselineLoaded) {
-        loadTrendBaselineFromGAS().then(() => renderTrendReport());
-        // 로드 시작 직후에는 위 Loading 조건에 걸려 스피너가 나올 것임
+        loadTrendBaselineFromGAS().then(() => {
+            window._mergedTrendForceRefresh = true;
+            renderTrendReport();
+        });
         return;
     }
 

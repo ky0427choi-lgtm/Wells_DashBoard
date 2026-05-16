@@ -12,6 +12,13 @@ var TREND_HEADERS = ["날짜", "지역", "사업장명", "끼니", "예측값", 
  */
 function fetchTrendBaseline(uid) {
   var auth = getUserAuth(uid);
+  var cache = CacheService.getScriptCache();
+  var cacheKey = "TREND_BASELINE_" + uid;
+  var cached = cache.get(cacheKey);
+  if (cached) {
+    try { return { trend: JSON.parse(cached), source: "cache" }; } catch(e) {}
+  }
+
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(TREND_RESULT_SHEET);
   
@@ -30,11 +37,16 @@ function fetchTrendBaseline(uid) {
       note: String(r[7] || "").trim()
     };
   }).filter(function(r) {
-    // 권한 필터링 적용
     return filterAuthRow_(auth, r.region, r.siteName);
   });
   
-  return { trend: result };
+  // 캐시 저장 (최대 6시간, 100KB 제한으로 인해 결과가 작을 때만 저장)
+  try {
+    var resStr = JSON.stringify(result);
+    if (resStr.length < 100000) cache.put(cacheKey, resStr, 21600);
+  } catch(e) {}
+
+  return { trend: result, source: "sheet" };
 }
 
 /**
