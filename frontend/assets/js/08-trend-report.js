@@ -243,13 +243,27 @@ function getMergedTrendData() {
 }
 
 function renderTrendReport() {
-    // 베이스라인이 아직 안 불렸다면 로드 시도 (비동기)
-    if (!window._gasTrendBaselineLoaded && !window._gasTrendBaselineLoading) {
-        loadTrendBaselineFromGAS().then(() => renderTrendReport());
+    const body = document.getElementById("trend-body");
+    
+    // 1. 베이스라인 로딩 중이면 스피너 표시 (점멸 방지)
+    if (window._gasTrendBaselineLoading) {
+        body.innerHTML = `
+            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:300px;color:var(--dim)">
+                <div class="spinner" style="width:30px;height:30px;border:3px solid rgba(56,189,248,.1);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite;margin-bottom:12px"></div>
+                <div style="font-size:12px;font-weight:700">AI 분석 베이스라인 로드 중...</div>
+                <div style="font-size:10px;margin-top:4px;opacity:.6">최적화된 1,500여 건의 데이터를 가져오고 있습니다</div>
+            </div>`;
+        return;
     }
 
-    const recs = getMergedTrendData(); // ★ [수정] 베이스라인 + 최신 데이터 병합 사용
-    const body = document.getElementById("trend-body");
+    // 2. 베이스라인이 아직 안 불렸다면 로드 시작
+    if (!window._gasTrendBaselineLoaded) {
+        loadTrendBaselineFromGAS().then(() => renderTrendReport());
+        // 로드 시작 직후에는 위 Loading 조건에 걸려 스피너가 나올 것임
+        return;
+    }
+
+    const recs = getMergedTrendData();
     const regSel = document.getElementById("trend-region-sel");
     const selRegion = regSel ? regSel.value : "ALL";
     const regionSites = selRegion === "ALL" ? null : new Set(D.filter(d => d["지역"] === selRegion).map(d => d["사업장명"]));
@@ -484,7 +498,7 @@ function renderTabTrend(body) {
     const pointColors = dates.map(d => lowDates.includes(d) ? '#fbbf24' : mkColor);
 
     body.innerHTML = `
-    <div style="padding:4px 0 16px">
+    <div class="fade-in" style="padding:4px 0 16px">
     ${mkFilterHTML(mk, sites, sfilt)}
     <!-- KPI 핵심 지표 (1행 4열 반응형) -->
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px">
@@ -509,12 +523,14 @@ function renderTabTrend(body) {
         ${lowDates.length > 0 ? `<div style="font-size:9px;color:var(--dim);margin-top:8px;line-height:1.5">🟠 해당 날짜: ${lowDates.map(d => d.slice(5)).join(' · ')}</div>` : '<div style="font-size:9px;color:var(--dim)">저조기 데이터 없음</div>'}
     </div>
     <!-- 추이 + 예측 차트 -->
-    <div class="ch-panel">
+    <div class="ch-panel" style="min-height:340px">
         <div class="ch-panel-title">📈 ${mk} 일별 추이 & WMA 예측 <span style="font-size:9px;color:${aiAccColor};font-weight:700;margin-left:6px">정확도 ${aiAccText}</span> <span style="font-size:9px;color:var(--dim);font-weight:400">🟠저조기 / 🟡주말 / 🔴공휴일</span></div>
         <div class="chart-scroll-wrap">
-            <div id="chartTrend" class="ch-apex" style="min-width:${Math.max(360, allDates.length * 34)}px"></div>
+            <div id="chartTrend" class="ch-apex" style="min-width:${Math.max(360, allDates.length * 34)}px; min-height:260px">
+                <div style="display:flex;align-items:center;justify-content:center;height:260px;opacity:.3">차트 생성 중...</div>
+            </div>
         </div>
-        <div id="chartTrendClickInfo" style="display:none;margin-top:10px;padding:12px;background:rgba(56,189,248,.04);border:1px solid rgba(56,189,248,.15);border-radius:10px;animation:slideIn .25s ease-out"></div>
+        <div id="chartTrendClickInfo" style="display:none;margin-top:10px;padding:12px;background:rgba(56,189,248,.04);border:1px solid rgba(56,189,248,.15);border-radius:10px"></div>
     </div>
     <!-- DI vs T/O -->
     ${mk === '중식' || mk === '합계' ? `<div class="ch-panel">
