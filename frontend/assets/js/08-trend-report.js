@@ -442,8 +442,7 @@ function renderTabTrend(body) {
         normAvg, lowAvg, dropPct, mk, mkColor, getMkVal, normVals, regionLabel, selectedSites } = window._trCtx;
     const sfilt = window._trendSiteFilter || [];
 
-    // DI / TO 분리
-    /* ★ v3.9 수정: 합계 선택 시 모든 끼니 DI/TO 합산 (기존: 중식만 사용) */
+    // DI / TO 분리 (모든 끼니 대응)
     const diByDate = {}, toByDate = {};
     const MEALS_ALL = ['조식', '중식', '석식', '야식'];
     filtRecs.forEach(r => {
@@ -462,14 +461,31 @@ function renderTabTrend(body) {
     const sumDITO = totalDI + totalTO || 1;
     const diPct = Math.round(totalDI / sumDITO * 100), toPct = 100 - diPct;
 
+    // 평일/최저치 평균 데이터 분리 (DI/TO 포함)
+    const normalValsDI = normalDates.map(d => diByDate[d] || 0);
+    const normalValsTO = normalDates.map(d => toByDate[d] || 0);
+    const normAvgDI = normalValsDI.length ? Math.round(normalValsDI.reduce((a, b) => a + b, 0) / normalValsDI.length) : 0;
+    const normAvgTO = normalValsTO.length ? Math.round(normalValsTO.reduce((a, b) => a + b, 0) / normalValsTO.length) : 0;
+    const normTotal = normAvgDI + normAvgTO;
+    const normDiPct = normTotal > 0 ? Math.round(normAvgDI / normTotal * 100) : 0;
+    const normToPct = normTotal > 0 ? 100 - normDiPct : 0;
+
+    const lowValsDI = lowDates.map(d => diByDate[d] || 0);
+    const lowValsTO = lowDates.map(d => toByDate[d] || 0);
+    const lowAvgDI = lowValsDI.length ? Math.round(lowValsDI.reduce((a, b) => a + b, 0) / lowValsDI.length) : 0;
+    const lowAvgTO = lowValsTO.length ? Math.round(lowValsTO.reduce((a, b) => a + b, 0) / lowValsTO.length) : 0;
+    const lowTotal = lowAvgDI + lowAvgTO;
+    const lowDiPct = lowTotal > 0 ? Math.round(lowAvgDI / lowTotal * 100) : 0;
+    const lowToPct = lowTotal > 0 ? 100 - lowDiPct : 0;
+
     // 조식 실측
     const joVals = wdDates.map(d => byDate['조식']?.[d] || 0).filter(v => v > 0);
     const joAvg = joVals.length ? Math.round(joVals.reduce((a, b) => a + b, 0) / joVals.length) : 0;
 
     // 최근 7평일 vs 전체 평일 비교
     const rec7wd = wdDates.filter(d => !lowDates.includes(d)).slice(-7).map(d => getMkVal(d)).filter(v => v > 0);
-    const r7avg = rec7wd.length ? Math.round(rec7wd.reduce((a, b) => a + b, 0) / rec7wd.length) : normAvg;
-    const trendPct = normAvg > 0 ? ((r7avg - normAvg) / normAvg * 100).toFixed(1) : 0;
+    const r7avg = rec7wd.length ? Math.round(rec7wd.reduce((a, b) => a + b, 0) / rec7wd.length) : normTotal;
+    const trendPct = normTotal > 0 ? ((r7avg - normTotal) / normTotal * 100).toFixed(1) : 0;
     const trendCls = trendPct > 0 ? '#34d399' : trendPct < 0 ? '#f87171' : '#fbbf24';
 
     /* ★ v4.0: 선형회귀 변수는 더 이상 예측에 사용하지 않음 (WMA로 대체)
@@ -559,12 +575,11 @@ function renderTabTrend(body) {
     <div class="fade-in" style="padding:4px 0 16px">
     ${mkFilterHTML(mk, sites, sfilt)}
     <!-- KPI 핵심 지표 (1행 4열 반응형) -->
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px">
-        <div class="kpi-v2 accent"><div class="kv2-lbl" style="white-space:nowrap">정상 평일 평균</div><div class="kv2-val" style="color:${mkColor}">${normAvg.toLocaleString()}<span style="font-size:11px;opacity:.7"> 식</span></div><div class="kv2-sub">${mk === '중식' ? `DI ${diPct}% · T/O ${toPct}%` : mk}</div></div>
-        <div class="kpi-v2 warning"><div class="kv2-lbl" style="white-space:nowrap">저조기 평균</div><div class="kv2-val" style="color:#fbbf24">${lowAvg > 0 ? lowAvg.toLocaleString() : '-'}<span style="font-size:11px;opacity:.7"> 식</span></div><div class="kv2-sub">${lowDates.length}일 해당</div></div>
-        <div class="kpi-v2 danger"><div class="kv2-lbl" style="white-space:nowrap">저조기 낙폭</div><div class="kv2-val" style="color:#f87171">▼${dropPct}<span style="font-size:14px;opacity:.7">%</span></div><div class="kv2-sub">정상 대비</div></div>
-        <div class="kpi-v2 ${trendPct > 0 ? 'success' : trendPct < 0 ? 'danger' : 'warning'}"><div class="kv2-lbl" style="white-space:nowrap">최근 7일 추이</div><div class="kv2-val" style="color:${trendCls}">${r7avg.toLocaleString()}<span style="font-size:11px;opacity:.7"> 식</span></div><div class="kv2-sub">${trendPct > 0 ? '↑' : '↓'} ${Math.abs(trendPct)}% vs 전체</div></div>
-        ${yoyHtml}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-bottom:14px">
+        <div class="kpi-v2 accent"><div class="kv2-lbl" style="white-space:nowrap">평일 평균 (정상)</div><div class="kv2-val" style="color:${mkColor}">${normTotal.toLocaleString()}<span style="font-size:11px;opacity:.7"> 식</span></div><div class="kv2-sub">D/I ${normAvgDI.toLocaleString()}(${normDiPct}%) · T/O ${normAvgTO.toLocaleString()}(${normToPct}%)</div></div>
+        <div class="kpi-v2 warning"><div class="kv2-lbl" style="white-space:nowrap">최저치 평균 (특이)</div><div class="kv2-val" style="color:#fbbf24">${lowTotal > 0 ? lowTotal.toLocaleString() : '-'}<span style="font-size:11px;opacity:.7"> 식</span></div><div class="kv2-sub">${lowTotal > 0 ? `D/I ${lowAvgDI.toLocaleString()}(${lowDiPct}%) · T/O ${lowAvgTO.toLocaleString()}(${lowToPct}%)` : '감소된 특이데이터 없음'}</div></div>
+        <div class="kpi-v2 danger"><div class="kv2-lbl" style="white-space:nowrap">식수 변동폭</div><div class="kv2-val" style="color:#f87171">▼${dropPct}<span style="font-size:14px;opacity:.7">%</span></div><div class="kv2-sub">정상 평일 대비 하락률</div></div>
+        <div class="kpi-v2 ${trendPct > 0 ? 'success' : trendPct < 0 ? 'danger' : 'warning'}"><div class="kv2-lbl" style="white-space:nowrap">최근 7일 추이 (평일기준)</div><div class="kv2-val" style="color:${trendCls}">${r7avg.toLocaleString()}<span style="font-size:11px;opacity:.7"> 식</span></div><div class="kv2-sub">${trendPct > 0 ? '↑' : '↓'} ${Math.abs(trendPct)}% vs 기간평균</div></div>
     </div>
     <!-- 낙폭 바 패널 -->
     <div class="ch-panel" style="margin-bottom:14px;padding:14px 16px">
@@ -591,12 +606,12 @@ function renderTabTrend(body) {
         </div>
         <div id="chartTrendClickInfo" style="display:none;margin-top:10px;padding:12px;background:rgba(56,189,248,.04);border:1px solid rgba(56,189,248,.15);border-radius:10px"></div>
     </div>
-    <!-- DI vs T/O -->
-    ${mk === '중식' || mk === '합계' ? `<div class="ch-panel">
-        <div class="ch-panel-title">📊 D/I · T/O 일별 비중 추이 (최근 14일)</div>
+    <!-- DI vs T/O (모든 끼니 적용) -->
+    <div class="ch-panel">
+        <div class="ch-panel-title">📊 [${mk}] D/I · T/O 일별 비중 추이 (최근 14일)</div>
         <div class="ch-panel-sub">T/O 비율이 높을수록 좌석 회전 압박 ↑ · 공간 확장 or T/O 코너 증설 검토 신호</div>
         <div id="chartDITO" class="ch-apex"></div>
-    </div>`: ''}
+    </div>
     <!-- ★ v4.0: 편차 패턴 자동 분석 패널 -->
     ${patternResult.notes.length > 0 ? `
     <div class="ch-panel" style="border-color:rgba(56,189,248,.12);padding:14px 16px">
@@ -651,28 +666,33 @@ function renderTabTrend(body) {
                                                 const dayOfWeek = DOW_MAP[new Date(clickDate + 'T00:00:00').getDay()];
                                                 const totalVal = getMkVal(clickDate);
                                                 const foreVal = isForecast ? foreRows[idx - dates.length] : null;
-                                                /* DI/TO 분리 계산 (중식일 경우) */
+                                                /* DI/TO 분리 계산 (모든 끼니) */
                                                 let ditoHtml = '';
-                                                if (mk === '중식' || mk === '합계') {
-                                                    const mkKey = mk === '합계' ? '중식' : mk;
-                                                    let diVal = 0, toVal = 0;
-                                                    filtRecs.filter(r => r.date === clickDate).forEach(r => {
+                                                const mkKey = mk === '합계' ? '중식' : mk; // 합계인 경우 전체 식수 합산
+                                                let diVal = 0, toVal = 0;
+                                                filtRecs.filter(r => r.date === clickDate).forEach(r => {
+                                                    if (mk === '합계') {
+                                                        ['조식', '중식', '석식', '야식'].forEach(m => {
+                                                            diVal += n(r['DI_' + m]);
+                                                            toVal += n(r['TO_' + m]);
+                                                        });
+                                                    } else {
                                                         diVal += n(r['DI_' + mkKey]);
                                                         toVal += n(r['TO_' + mkKey]);
-                                                    });
-                                                    if (diVal > 0 || toVal > 0) {
-                                                        const total = diVal + toVal || 1;
-                                                        ditoHtml = `<div style="display:flex;gap:12px;margin-top:8px;flex-wrap:wrap">
-                                                            <div style="padding:6px 10px;background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.2);border-radius:8px;font-size:11px">
-                                                                🔵 일반식(D/I): <strong style="color:#38bdf8">${diVal.toLocaleString()}명</strong>
-                                                                <span style="color:var(--dim);font-size:9px;margin-left:4px">(${Math.round(diVal / total * 100)}%)</span>
-                                                            </div>
-                                                            <div style="padding:6px 10px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);border-radius:8px;font-size:11px">
-                                                                🟠 테이크아웃(T/O): <strong style="color:#fbbf24">${toVal.toLocaleString()}명</strong>
-                                                                <span style="color:var(--dim);font-size:9px;margin-left:4px">(${Math.round(toVal / total * 100)}%)</span>
-                                                            </div>
-                                                        </div>`;
                                                     }
+                                                });
+                                                if (diVal > 0 || toVal > 0) {
+                                                    const total = diVal + toVal || 1;
+                                                    ditoHtml = `<div style="display:flex;gap:12px;margin-top:8px;flex-wrap:wrap">
+                                                        <div style="padding:6px 10px;background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.2);border-radius:8px;font-size:11px">
+                                                            🔵 일반식(D/I): <strong style="color:#38bdf8">${diVal.toLocaleString()}명</strong>
+                                                            <span style="color:var(--dim);font-size:9px;margin-left:4px">(${Math.round(diVal / total * 100)}%)</span>
+                                                        </div>
+                                                        <div style="padding:6px 10px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);border-radius:8px;font-size:11px">
+                                                            🟠 테이크아웃(T/O): <strong style="color:#fbbf24">${toVal.toLocaleString()}명</strong>
+                                                            <span style="color:var(--dim);font-size:9px;margin-left:4px">(${Math.round(toVal / total * 100)}%)</span>
+                                                        </div>
+                                                    </div>`;
                                                 }
                                                 const typeBadge = dayType.type === 'weekend' ? '<span style="background:rgba(251,191,36,.15);color:#fbbf24;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:800">🟡 주말</span>'
                                                     : dayType.type === 'holiday' ? '<span style="background:rgba(248,113,113,.12);color:#f87171;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:800">🔴 공휴일</span>'
@@ -1110,12 +1130,12 @@ function renderTabReport(body) {
         const bAvg = isOff ? weAvg : wdAvg;
         const chg = bAvg > 0 ? ((fv - bAvg) / bAvg * 100).toFixed(1) : 0;
         const cc = chg > 0 ? '#34d399' : chg < 0 ? '#f87171' : '#fbbf24';
-        /* ★ 중식 예측은 DI/TO 비율로 분리 출력 */
+        /* ★ 모든 끼니 예측은 DI/TO 비율로 분리 출력 */
         const diRatio = rptSumAll > 0 ? rptTotalDI / rptSumAll : 0.7;
         const toRatio = 1 - diRatio;
         const estDI = Math.round(fv * diRatio);
         const estTO = Math.round(fv * toRatio);
-        const ditoInfo = (mk === '중식' || mk === '합계') ? `<br><span style="font-size:9px;color:var(--dim)">일반식 ~${estDI.toLocaleString()} / T/O ~${estTO.toLocaleString()}</span>` : '';
+        const ditoInfo = `<br><span style="font-size:9px;color:var(--dim)">일반식 ~${estDI.toLocaleString()} / T/O ~${estTO.toLocaleString()}</span>`;
         return `<tr${isOff ? ' style="opacity:.6"' : ''}><td>${ds.slice(5)}</td><td>${badge}</td><td style="color:var(--accent3);font-weight:900">${fv.toLocaleString()}식${ditoInfo}</td><td style="color:${cc};font-weight:800">${chg > 0 ? '+' : ''}${chg}%</td></tr>`;
     }).join('')}</tbody>
         </table></div>
@@ -1216,13 +1236,10 @@ function renderTabReport(body) {
                                     document.getElementById('chartForecast').parentNode.insertBefore(infoEl, document.getElementById('chartForecast').nextSibling);
                                 }
                                 const badge = fr.isOff ? `<span style="background:rgba(248,113,113,.12);color:#f87171;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:800">${fr.ht.label || '휴일'}</span>` : `<span style="background:rgba(56,189,248,.1);color:#38bdf8;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:800">평일</span>`;
-                                let ditoDetail = '';
-                                if (mk === '중식' || mk === '합계') {
-                                    ditoDetail = `<div style="display:flex;gap:10px;margin-top:6px;flex-wrap:wrap">
-                                        <div style="padding:5px 8px;background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.2);border-radius:6px;font-size:10px">🔵 일반식(D/I): <strong style="color:#38bdf8">~${estDI.toLocaleString()}명</strong></div>
-                                        <div style="padding:5px 8px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);border-radius:6px;font-size:10px">🟠 T/O: <strong style="color:#fbbf24">~${estTO.toLocaleString()}명</strong></div>
-                                    </div>`;
-                                }
+                                ditoDetail = `<div style="display:flex;gap:10px;margin-top:6px;flex-wrap:wrap">
+                                    <div style="padding:5px 8px;background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.2);border-radius:6px;font-size:10px">🔵 일반식(D/I): <strong style="color:#38bdf8">~${estDI.toLocaleString()}명</strong></div>
+                                    <div style="padding:5px 8px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);border-radius:6px;font-size:10px">🟠 T/O: <strong style="color:#fbbf24">~${estTO.toLocaleString()}명</strong></div>
+                                </div>`;
                                 infoEl.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:12px;font-weight:900">📅 ${fr.ds} (${dayOfWeek}요일) ${badge} <span style="background:rgba(244,63,94,.12);color:#f43f5e;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:800;margin-left:3px">AI예측</span></div><button onclick="this.parentNode.parentNode.remove()" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:14px">✕</button></div><div style="font-size:12px;font-weight:800;color:var(--accent3);margin-top:4px">추정 ${mk}: ${fr.fv.toLocaleString()}명</div>${ditoDetail}`;
                             } catch (err) { }
                         }
