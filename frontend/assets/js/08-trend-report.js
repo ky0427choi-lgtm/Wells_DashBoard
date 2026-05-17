@@ -510,7 +510,8 @@ function renderTabTrend(body) {
     const lowToPct = lowTotal > 0 ? 100 - lowDiPct : 0;
 
     // ★ v4.9: 두 번째 KPI (주말 & 특정일 평균)를 위해 주말 + 저조기 날짜 통합
-    const weAndLowDates = [...weDates, ...lowDates];
+    const weDatesArray = window._trCtx.weDates || [];
+    const weAndLowDates = [...weDatesArray, ...lowDates];
     const weLowValsDI = weAndLowDates.map(d => diByDate[d] || 0);
     const weLowValsTO = weAndLowDates.map(d => toByDate[d] || 0);
     const weLowAvgDI = weLowValsDI.length ? Math.round(weLowValsDI.reduce((a, b) => a + b, 0) / weLowValsDI.length) : 0;
