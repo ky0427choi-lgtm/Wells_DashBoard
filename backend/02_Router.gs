@@ -3,45 +3,57 @@
    doGet, doPost (내부 로직 변경 없음)
    ============================================ */
 
-function doGet(e){
-  if(e.parameter.type==="login") return handleLoginV3(e.parameter.userId, e.parameter.pw);
+function doGet(e) {
+  var type = e.parameter.type;
+  var tk = e.parameter.tk;
+  var callback = e.parameter.callback;
+  var res;
 
-  /* ★ v3.7 개선: 세션 재사용 접속 로그 — 토큰 만료시에도 기록 */
-  if(e.parameter.type==="sessionLog"){
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var uid = chkToken(e.parameter.tk);
-    if(uid){
-      writeLoginLog(ss, uid, "SessionResume");
-      return ContentService.createTextOutput("ok");
-    } else {
+  try {
+    // 1. 로그인 전용 처리
+    if (type === "login") return handleLoginV3(e.parameter.userId, e.parameter.pw);
+
+    // 2. 세션 로그 처리
+    if (type === "sessionLog") {
+      var ss = SpreadsheetApp.getActiveSpreadsheet();
+      var uid = chkToken(tk);
+      if (uid) {
+        writeLoginLog(ss, uid, "SessionResume");
+        return ContentService.createTextOutput("ok");
+      }
       var hint = String(e.parameter.hint || "unknown").trim();
-      if(hint && hint !== "unknown"){
+      if (hint && hint !== "unknown") {
         writeLoginLog(ss, hint, "SessionResume_TokenExpired");
       }
       return ContentService.createTextOutput("token_expired");
     }
+
+    // 3. 데이터 요청 처리 (토큰 검증 필수)
+    var uid = chkToken(tk);
+    if (!uid) {
+      res = { error: "auth_expired" };
+    } else {
+      switch (type) {
+        case 'perf': res = fetchPerfData(uid); break;
+        case 'perfVersion': res = { version: getGlobalVersion() }; break;
+        case 'monthly': res = fetchMonthlyData(uid); break;
+        case 'trendBaseline': res = fetchTrendBaseline(uid); break;
+        case 'trendSummary': res = fetchTrendSummary(uid); break;
+        default: res = fetchDataFiltered(uid); break;
+      }
+    }
+  } catch (err) {
+    res = { error: err.toString() };
   }
 
-  if(e.parameter.type==="perf"){
-    var uid=chkToken(e.parameter.tk); if(!uid)return jOut({error:"auth_expired"}); return jOut(fetchPerfData(uid));
+  // 4. JSONP 지원 (CORS 우회 핵심)
+  var json = JSON.stringify(res);
+  if (callback) {
+    var output = callback + '(' + json + ')';
+    return ContentService.createTextOutput(output).setMimeType(ContentService.MimeType.JAVASCRIPT);
   }
-  /* ★ v4.1: 글로벌 버전만 반환 — 클라이언트가 캐시 유효성 확인용 */
-  if(e.parameter.type==="perfVersion"){
-    var uid0=chkToken(e.parameter.tk); 
-    if(!uid0) return jOut({error:"auth_expired"});
-    return jOut({version: getGlobalVersion()});
-  }
-  if(e.parameter.type==="monthly"){
-    var uid2=chkToken(e.parameter.tk); if(!uid2)return jOut({error:"auth_expired"}); return jOut(fetchMonthlyData(uid2));
-  }
-  /* ★ v4.3: AI 분석 로우 데이터 (추이 베이스라인) 조회 추가 */
-  if(e.parameter.type==="trendBaseline"){
-    var uid3=chkToken(e.parameter.tk); if(!uid3)return jOut({error:"auth_expired"}); return jOut(fetchTrendBaseline(uid3));
-  }
-  if(e.parameter.tk){
-    var uid4=chkToken(e.parameter.tk); if(!uid4)return jOut({error:"auth_expired"}); return jOut(fetchDataFiltered(uid4));
-  }
-  return ContentService.createTextOutput("Dashboard API Running");
+
+  return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
 }
 
 function doPost(e){

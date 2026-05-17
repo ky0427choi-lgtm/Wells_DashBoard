@@ -14,6 +14,28 @@ async function _openDB() {
     });
 }
 
+/**
+ * ★ v4.8: CORS 보안 차단을 우회하는 초고속 JSONP 로더
+ */
+function fetchJSONP(url) {
+    return new Promise((resolve, reject) => {
+        const callbackName = 'jsonp_cb_' + Math.round(100000 * Math.random());
+        window[callbackName] = function(data) {
+            delete window[callbackName];
+            document.body.removeChild(script);
+            resolve(data);
+        };
+        const script = document.createElement('script');
+        script.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'callback=' + callbackName;
+        script.onerror = () => {
+            delete window[callbackName];
+            document.body.removeChild(script);
+            reject(new Error('JSONP Request Failed'));
+        };
+        document.body.appendChild(script);
+    });
+}
+
 async function _dbGet(key) {
     try {
         const db = await _openDB();
@@ -36,8 +58,7 @@ async function _dbPut(key, val) {
 
 async function _getServerVersion() {
     try {
-        const r = await fetch(API + "?type=perfVersion&tk=" + TK, { redirect: "follow" });
-        const d = await r.json();
+        const d = await fetchJSONP(API + "?type=perfVersion&tk=" + TK);
         if (d.error === "auth_expired") return "auth_expired";
         return String(d.version || "0");
     } catch (e) { return "error"; }
@@ -64,8 +85,7 @@ async function loadPerfFromGAS(force = false) {
                 return;
             }
         }
-        const r = await fetch(API + "?type=perf&tk=" + TK, { redirect: "follow" });
-        const d = await r.json();
+        const d = await fetchJSONP(API + "?type=perf&tk=" + TK);
         if (d.error === "auth_expired") return;
         if (d.perf && Array.isArray(d.perf)) {
             _applyPerfData(d);
@@ -88,13 +108,8 @@ async function loadTrendBaselineFromGAS() {
 
     window._gasTrendBaselineLoading = true;
     try {
-        console.log("📡 Fetching Trend Baseline from Server...");
-        const r = await fetch(API + "?type=trendBaseline&tk=" + TK, { redirect: "follow" });
-        
-        // 2. 응답이 정상이 아닐 경우 에러 처리
-        if (!r.ok) throw new Error(`HTTP error! status: ${r.status}`);
-        
-        const d = await r.json();
+        console.log("📡 Fetching Trend Baseline via JSONP...");
+        const d = await fetchJSONP(API + "?type=trendBaseline&tk=" + TK);
         
         if (d.error === "auth_expired") {
             window._gasTrendBaselineLoading = false;
