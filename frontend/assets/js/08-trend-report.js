@@ -509,14 +509,24 @@ function renderTabTrend(body) {
     const lowDiPct = lowTotal > 0 ? Math.round(lowAvgDI / lowTotal * 100) : 0;
     const lowToPct = lowTotal > 0 ? 100 - lowDiPct : 0;
 
+    // ★ v4.9: 두 번째 KPI (주말 & 특정일 평균)를 위해 주말 + 저조기 날짜 통합
+    const weAndLowDates = [...weDates, ...lowDates];
+    const weLowValsDI = weAndLowDates.map(d => diByDate[d] || 0);
+    const weLowValsTO = weAndLowDates.map(d => toByDate[d] || 0);
+    const weLowAvgDI = weLowValsDI.length ? Math.round(weLowValsDI.reduce((a, b) => a + b, 0) / weLowValsDI.length) : 0;
+    const weLowAvgTO = weLowValsTO.length ? Math.round(weLowValsTO.reduce((a, b) => a + b, 0) / weLowValsTO.length) : 0;
+    const weLowTotal = weLowAvgDI + weLowAvgTO;
+    const weLowDiPct = weLowTotal > 0 ? Math.round(weLowAvgDI / weLowTotal * 100) : 0;
+    const weLowToPct = weLowTotal > 0 ? 100 - weLowDiPct : 0;
+
     // 조식 실측
     const joVals = wdDates.map(d => byDate['조식']?.[d] || 0).filter(v => v > 0);
     const joAvg = joVals.length ? Math.round(joVals.reduce((a, b) => a + b, 0) / joVals.length) : 0;
 
-    // 최근 7평일 vs 전체 평일 비교
-    const rec7wd = wdDates.filter(d => !lowDates.includes(d)).slice(-7).map(d => getMkVal(d)).filter(v => v > 0);
-    const r7avg = rec7wd.length ? Math.round(rec7wd.reduce((a, b) => a + b, 0) / rec7wd.length) : normTotal;
-    const trendPct = normTotal > 0 ? ((r7avg - normTotal) / normTotal * 100).toFixed(1) : 0;
+    // ★ v4.9: 최근 2주 추이 (평일기준 10일)
+    const rec10wd = wdDates.filter(d => !lowDates.includes(d)).slice(-10).map(d => getMkVal(d)).filter(v => v > 0);
+    const r10avg = rec10wd.length ? Math.round(rec10wd.reduce((a, b) => a + b, 0) / rec10wd.length) : normTotal;
+    const trendPct = normTotal > 0 ? ((r10avg - normTotal) / normTotal * 100).toFixed(1) : 0;
     const trendCls = trendPct > 0 ? '#34d399' : trendPct < 0 ? '#f87171' : '#fbbf24';
 
     /* ★ v4.0: 선형회귀 변수는 더 이상 예측에 사용하지 않음 (WMA로 대체)
@@ -607,14 +617,15 @@ function renderTabTrend(body) {
     ${mkFilterHTML(mk, sites, sfilt)}
     <!-- KPI 핵심 지표 (1행 4열 반응형) -->
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-bottom:14px">
-        <div class="kpi-v2 accent"><div class="kv2-lbl" style="white-space:nowrap">평일 평균 (정상)</div><div class="kv2-val" style="color:${mkColor}">${normTotal.toLocaleString()}<span style="font-size:11px;opacity:.7"> 식</span></div><div class="kv2-sub">D/I ${normAvgDI.toLocaleString()}(${normDiPct}%) · T/O ${normAvgTO.toLocaleString()}(${normToPct}%)</div></div>
-        <div class="kpi-v2 warning"><div class="kv2-lbl" style="white-space:nowrap">최저치 평균 (특이)</div><div class="kv2-val" style="color:#fbbf24">${lowTotal > 0 ? lowTotal.toLocaleString() : '-'}<span style="font-size:11px;opacity:.7"> 식</span></div><div class="kv2-sub">${lowTotal > 0 ? `D/I ${lowAvgDI.toLocaleString()}(${lowDiPct}%) · T/O ${lowAvgTO.toLocaleString()}(${lowToPct}%)` : '감소된 특이데이터 없음'}</div></div>
-        <div class="kpi-v2 danger"><div class="kv2-lbl" style="white-space:nowrap">식수 변동폭</div><div class="kv2-val" style="color:#f87171">▼${dropPct}<span style="font-size:14px;opacity:.7">%</span></div><div class="kv2-sub">정상 평일 대비 하락률</div></div>
-        <div class="kpi-v2 ${trendPct > 0 ? 'success' : trendPct < 0 ? 'danger' : 'warning'}"><div class="kv2-lbl" style="white-space:nowrap">최근 7일 추이 (평일기준)</div><div class="kv2-val" style="color:${trendCls}">${r7avg.toLocaleString()}<span style="font-size:11px;opacity:.7"> 식</span></div><div class="kv2-sub">${trendPct > 0 ? '↑' : '↓'} ${Math.abs(trendPct)}% vs 기간평균</div></div>
+        <div class="kpi-v2 accent"><div class="kv2-lbl" style="white-space:nowrap">평일 평균</div><div class="kv2-val" style="color:${mkColor}">${normTotal.toLocaleString()}<span style="font-size:11px;opacity:.7"> 식</span></div><div class="kv2-sub">D/I ${normAvgDI.toLocaleString()}(${normDiPct}%) · T/O ${normAvgTO.toLocaleString()}(${normToPct}%)</div></div>
+        <div class="kpi-v2 warning"><div class="kv2-lbl" style="white-space:nowrap">주말&특정일 평균</div><div class="kv2-val" style="color:#fbbf24">${weLowTotal > 0 ? weLowTotal.toLocaleString() : '-'}<span style="font-size:11px;opacity:.7"> 식</span></div><div class="kv2-sub">${weLowTotal > 0 ? `D/I ${weLowAvgDI.toLocaleString()}(${weLowDiPct}%) · T/O ${weLowAvgTO.toLocaleString()}(${weLowToPct}%)` : '주말 및 특이데이터 없음'}</div></div>
+        <div class="kpi-v2 danger"><div class="kv2-lbl" style="white-space:nowrap">식수 변동폭</div><div class="kv2-val" style="color:#f87171">▼${dropPct}<span style="font-size:14px;opacity:.7">%</span></div><div class="kv2-sub">평일 평균대비 하락율</div></div>
+        <div class="kpi-v2 ${trendPct > 0 ? 'success' : trendPct < 0 ? 'danger' : 'warning'}"><div class="kv2-lbl" style="white-space:nowrap">최근 2주 추이 (평일)</div><div class="kv2-val" style="color:${trendCls}">${r10avg.toLocaleString()}<span style="font-size:11px;opacity:.7"> 식</span></div><div class="kv2-sub">${trendPct > 0 ? '↑' : '↓'} ${Math.abs(trendPct)}% vs 기간평균</div></div>
     </div>
     <!-- 낙폭 바 패널 -->
     <div class="ch-panel" style="margin-bottom:14px;padding:14px 16px">
-        <div style="font-size:11px;font-weight:900;margin-bottom:10px">📉 정상 대비 저조기 낙폭</div>
+        <div style="font-size:11px;font-weight:900;margin-bottom:4px">📉 평일대비 평균최저치 낙폭</div>
+        <div style="font-size:9px;color:var(--dim);margin-bottom:10px">(주말(토,일요일)을 제외한 평일기준 평균최저치)</div>
         ${['중식', '합계', '석식', '조식'].map(m => {
         const mv_n = normalDates.map(d => m === '합계' ? ['조식', '중식', '석식', '야식'].reduce((s, mx) => s + (byDate[mx]?.[d] || 0), 0) : (byDate[m]?.[d] || 0)).filter(v => v > 0);
         const mv_l = lowDates.map(d => m === '합계' ? ['조식', '중식', '석식', '야식'].reduce((s, mx) => s + (byDate[mx]?.[d] || 0), 0) : (byDate[m]?.[d] || 0)).filter(v => v > 0);
@@ -625,7 +636,7 @@ function renderTabTrend(body) {
         const c = MC[m] || '#38bdf8';
         return `<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;margin-bottom:2px"><span style="font-size:10px;color:var(--dim)">${m}</span><div style="display:flex;gap:8px;align-items:center"><span style="font-size:9px;color:var(--dim)">${la.toLocaleString()}→${na.toLocaleString()}</span><span style="font-size:11px;font-weight:800;color:#f43f5e">▼${dp}%</span></div></div><div style="background:rgba(255,255,255,.04);border-radius:99px;height:5px"><div style="height:100%;border-radius:99px;width:${100 - dp}%;background:linear-gradient(90deg,${c}33,${c})"></div></div></div>`;
     }).join('')}
-        ${lowDates.length > 0 ? `<div style="font-size:9px;color:var(--dim);margin-top:8px;line-height:1.5">🟠 해당 날짜: ${lowDates.map(d => d.slice(5)).join(' · ')}</div>` : '<div style="font-size:9px;color:var(--dim)">저조기 데이터 없음</div>'}
+        ${lowDates.length > 0 ? `<div style="font-size:9px;color:var(--dim);margin-top:8px;line-height:1.5">🟠 해당 날짜: ${lowDates.map(d => d.slice(5)).join(' · ')}</div>` : '<div style="font-size:9px;color:var(--dim)">평일 중 최저치(저조기) 데이터 없음</div>'}
     </div>
     <!-- 추이 + 예측 차트 -->
     <div class="ch-panel" style="min-height:340px">
