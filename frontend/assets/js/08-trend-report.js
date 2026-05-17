@@ -397,9 +397,25 @@ function renderTrendReport() {
     });
     const normalDates = wdDates.filter(d => !lowDates.includes(d) && getMkVal(d) > 0);
 
-    const normVals = normalDates.map(d => getMkVal(d)).filter(v => v > 0);
-    const lowVals = lowDates.map(d => getMkVal(d)).filter(v => v > 0);
+    // ★ v4.11: 평일 평균 산출 기준을 '전체 과거'가 아닌 '최근 30일'로 제한 (계절성 편차 방지)
+    const todayForFilter = new Date();
+    const minDate30 = new Date(todayForFilter); minDate30.setDate(todayForFilter.getDate() - 30);
+    const minDate60 = new Date(todayForFilter); minDate60.setDate(todayForFilter.getDate() - 60);
+    const min30Str = _toYMD(minDate30);
+    const min60Str = _toYMD(minDate60);
+
+    // 최근 30일 평일(정상) 데이터
+    const normalDates30 = normalDates.filter(d => d >= min30Str);
+    const normVals = normalDates30.map(d => getMkVal(d)).filter(v => v > 0);
     const normAvg = normVals.length ? Math.round(normVals.reduce((a, b) => a + b, 0) / normVals.length) : 0;
+    
+    // 전월(31~60일 전) 평일 데이터
+    const normalDatesPrev = normalDates.filter(d => d >= min60Str && d < min30Str);
+    const prevVals = normalDatesPrev.map(d => getMkVal(d)).filter(v => v > 0);
+    const prevAvg = prevVals.length ? Math.round(prevVals.reduce((a, b) => a + b, 0) / prevVals.length) : 0;
+    const diffMoM = prevAvg > 0 ? Math.round((normAvg - prevAvg) / prevAvg * 100) : null;
+
+    const lowVals = lowDates.map(d => getMkVal(d)).filter(v => v > 0);
     const lowAvg = lowVals.length ? Math.round(lowVals.reduce((a, b) => a + b, 0) / lowVals.length) : 0;
     const dropPct = normAvg > 0 ? Math.round((1 - lowAvg / normAvg) * 100) : 0;
 
@@ -409,8 +425,9 @@ function renderTrendReport() {
 
     // ★ v4.0: 공유 컨텍스트 저장 (patternResult 추가)
     window._trCtx = {
-        filtRecs, dates, sites: activeSites, wdDates, lowDates, weDates, normalDates,
-        byDate, normAvg, lowAvg, dropPct, mk, mkColor, getMkVal, normVals, regionLabel, selectedSites
+        filtRecs, dates, sites: activeSites, wdDates, lowDates, weDates, normalDates, normalDates30,
+        byDate, normAvg, lowAvg, dropPct, mk, mkColor, getMkVal, normVals, regionLabel, selectedSites,
+        prevAvg, diffMoM
     };
     /* patternResult는 renderTabTrend 내부에서 계산되어 지역 스코프에 존재 */
 
@@ -470,7 +487,8 @@ function mkFilterHTML(mk, sites, siteFilter) {
 function renderTabTrend(body) {
     /* ★ v3.9 수정: selectedSites destructuring 추가 (기존 누락으로 ReferenceError 발생) */
     const { filtRecs, dates, sites, wdDates, lowDates, normalDates, byDate,
-        normAvg, lowAvg, dropPct, mk, mkColor, getMkVal, normVals, regionLabel, selectedSites } = window._trCtx;
+        normAvg, lowAvg, dropPct, mk, mkColor, getMkVal, normVals, regionLabel, selectedSites,
+        prevAvg, diffMoM } = window._trCtx;
     const sfilt = window._trendSiteFilter || [];
 
     // DI / TO 분리 (모든 끼니 대응)
@@ -544,36 +562,14 @@ function renderTabTrend(body) {
         const testN = Math.min(4, Math.floor(normalDates.length / 3));
         if (testN > 0) {
             const trainDates = normalDates.slice(0, -testN);
-            const testDatesList = normalDates.slice(-testN);
-            let sumAPE = 0, validN = 0;
-            testDatesList.forEach(td => {
-                /* WMA 백테스트: 훈련 데이터만으로 예측 */
-                const pred = wmaForecast(trainDates, d => getMkVal(d), td);
-                const actual = getMkVal(td);
-                if (actual > 0 && pred > 0) {
-                    sumAPE += Math.abs(actual - pred) / actual;
-                    validN++;
-                }
-            });
-            if (validN > 0) {
-                const mape = sumAPE / validN * 100;
-                aiAccuracy = Math.max(0, Math.round(100 - mape));
-            }
-        }
-    }
-    const aiAccText = aiAccuracy != null ? `${aiAccuracy}%` : '산출불가';
-    const aiAccColor = aiAccuracy != null
-        ? (aiAccuracy >= 80 ? '#34d399' : aiAccuracy >= 60 ? '#fbbf24' : '#f87171')
-        : 'var(--dim)';
-
-    /* ★ v4.0: WMA 기반 예측 행 생성
+    /* ★ v4.11: WMA 기반 예측 행 생성 (Today 기준 고정)
        - 저장된 GAS 예측값 우선 (실측반영된 정확도 보존)
        - 없으면 클라이언트 WMA로 실시간 산출 */
-    const lastDate = new Date(dates[dates.length - 1] + 'T00:00:00');
+    const todayObj = new Date();
     const foreRows = [];
-    // ★ v4.10: 미래 예측을 1주(7일)로 연장
+    // ★ v4.11: 미래 예측을 Today+1 ~ Today+7 (1주)로 설정
     for (let i = 1; i <= 7; i++) {
-        const fd = new Date(lastDate); fd.setDate(fd.getDate() + i);
+        const fd = new Date(todayObj); fd.setDate(todayObj.getDate() + i);
         const ds = _toYMD(fd), ht = getHolidayType(ds);
         const isOff = ht.type !== 'workday';
         const storedPred = getForecastValueForDate(selectedSites, mk, ds);
@@ -586,13 +582,29 @@ function renderTabTrend(body) {
     /* ★ v4.0: 편차 패턴 감지 실행 */
     const patternResult = detectSpecialMealPattern(dates, getMkVal, wdDates);
 
-    // ★ v4.10: 차트용 시계열 데이터를 최근 과거 2주(14일) + 예측 1주로 제한
-    const chartDates = dates.slice(-14);
+    // ★ v4.11: 차트용 과거 구간을 Today - 14일 ~ Today 로 고정 (총 15일)
+    const chartDates = [];
+    for (let i = 14; i >= 0; i--) {
+        const d = new Date(todayObj); d.setDate(todayObj.getDate() - i);
+        chartDates.push(_toYMD(d));
+    }
+
     const allDates = [...chartDates, ...foreRows.map(r => r.ds)];
-    const histData = chartDates.map(d => getMkVal(d));
+    // 기록에 있는 날짜만 실적으로 표시, 없는 날짜는 null 처리하여 빈 틈을 만듦
+    const histData = chartDates.map(d => dates.includes(d) && getMkVal(d) > 0 ? getMkVal(d) : null);
     const foreData = [...new Array(chartDates.length).fill(null), ...foreRows.map(r => r.fv)];
-    // 실적 선과 예측 선 잇기
-    foreData[chartDates.length - 1] = getMkVal(chartDates[chartDates.length - 1]);
+    
+    // 실적 선의 마지막 유효 데이터 포인트를 찾아 예측 선과 매끄럽게 연결
+    let lastActualIdx = -1;
+    for (let i = histData.length - 1; i >= 0; i--) {
+        if (histData[i] !== null) {
+            lastActualIdx = i;
+            break;
+        }
+    }
+    if (lastActualIdx >= 0) {
+        foreData[lastActualIdx] = histData[lastActualIdx];
+    }
     
     const xLabels = allDates.map(d => {
         const ht = getHolidayType(d).type;
@@ -601,29 +613,38 @@ function renderTabTrend(body) {
     });
     const pointColors = chartDates.map(d => lowDates.includes(d) ? '#fbbf24' : mkColor);
 
+    /* ★ v4.11: 전월 대비 (MoM) 비교 요약 계산 */
+    let momHtml = "";
+    if (diffMoM !== null) {
+        const momColor = diffMoM >= 0 ? "#34d399" : "#f87171";
+        momHtml = `<div class="kpi-v2 success" style="border-color:${momColor}44"><div class="kv2-lbl" style="white-space:nowrap">전월 대비 (MoM)</div><div class="kv2-val" style="color:${momColor}">${diffMoM >= 0 ? "+" : ""}${diffMoM}%</div><div class="kv2-sub">직전 30일 평일 대비</div></div>`;
+    }
+
     /* ★ v4.4: 전년 대비(YoY) 비교 요약 계산 */
     let yoyHtml = "";
     if (window._historicalStats2025 && selectedSites.length === 1) {
         const sName = selectedSites[0];
-        const histM = new Date(dates[dates.length-1]).getMonth();
+        const histM = todayObj.getMonth(); // 당월 기준
         const histVal = window._historicalStats2025.stats[sName]?.[mk]?.[histM] || 0;
         const currVal = normAvg;
         if (histVal > 0) {
             const diff = Math.round((currVal - histVal) / histVal * 100);
             const color = diff >= 0 ? "#34d399" : "#f87171";
-            yoyHtml = `<div class="kpi-v2"><div class="kv2-lbl">전년 동월 대비</div><div class="kv2-val" style="color:${color}">${diff >= 0 ? "+" : ""}${diff}%</div><div class="kv2-sub">2025년 ${histM+1}월 기준</div></div>`;
+            yoyHtml = `<div class="kpi-v2 success" style="border-color:${color}44"><div class="kv2-lbl" style="white-space:nowrap">전년 대비 (YoY)</div><div class="kv2-val" style="color:${color}">${diff >= 0 ? "+" : ""}${diff}%</div><div class="kv2-sub">2025년 ${histM+1}월 동월 평균 대비</div></div>`;
         }
     }
 
     body.innerHTML = `
     <div class="fade-in" style="padding:4px 0 16px">
     ${mkFilterHTML(mk, sites, sfilt)}
-    <!-- KPI 핵심 지표 (1행 4열 반응형) -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-bottom:14px">
+    <!-- KPI 핵심 지표 (1행 6열 반응형 그리드) -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-bottom:14px">
         <div class="kpi-v2 accent"><div class="kv2-lbl" style="white-space:nowrap">평일 평균</div><div class="kv2-val" style="color:${mkColor}">${normTotal.toLocaleString()}<span style="font-size:11px;opacity:.7"> 식</span></div><div class="kv2-sub">D/I ${normAvgDI.toLocaleString()}(${normDiPct}%) · T/O ${normAvgTO.toLocaleString()}(${normToPct}%)</div></div>
         <div class="kpi-v2 warning"><div class="kv2-lbl" style="white-space:nowrap">특정일 평균</div><div class="kv2-val" style="color:#fbbf24">${lowTotal > 0 ? lowTotal.toLocaleString() : '-'}<span style="font-size:11px;opacity:.7"> 식</span></div><div class="kv2-sub">${lowTotal > 0 ? `D/I ${lowAvgDI.toLocaleString()}(${lowDiPct}%) · T/O ${lowAvgTO.toLocaleString()}(${lowToPct}%)` : '평일 중 급감한 데이터 없음'}</div></div>
         <div class="kpi-v2 danger"><div class="kv2-lbl" style="white-space:nowrap">식수 변동폭</div><div class="kv2-val" style="color:#f87171">▼${dropPct}<span style="font-size:14px;opacity:.7">%</span></div><div class="kv2-sub">평일 평균대비 하락율</div></div>
         <div class="kpi-v2 ${trendPct > 0 ? 'success' : trendPct < 0 ? 'danger' : 'warning'}"><div class="kv2-lbl" style="white-space:nowrap">최근 2주 추이 (평일)</div><div class="kv2-val" style="color:${trendCls}">${r10avg.toLocaleString()}<span style="font-size:11px;opacity:.7"> 식</span></div><div class="kv2-sub">${trendPct > 0 ? '↑' : '↓'} ${Math.abs(trendPct)}% vs 기간평균</div></div>
+        ${momHtml}
+        ${yoyHtml}
     </div>
     <!-- 낙폭 바 패널 -->
     <div class="ch-panel" style="margin-bottom:14px;padding:14px 16px">
@@ -810,10 +831,10 @@ function renderTabTrend(body) {
                                 yaxis: { ...APEX_BASE.yaxis, min: 0, title: { text: '식수(명)', style: { color: '#64748b', fontSize: '10px' } }, labels: { ...APEX_BASE.yaxis.labels, formatter: v => v.toLocaleString() } },
                                 annotations: {
                                     xaxis: [{
-                                        x: dates[dates.length - 1].slice(5) + (
-                                            getHolidayType(dates[dates.length - 1]).type !== 'workday'
-                                                ? '\n' + (getHolidayType(dates[dates.length - 1]).type === 'weekend' ? '🟡' : '🔴')
-                                                : (lowDates.includes(dates[dates.length - 1]) ? '\n🟠' : '')
+                                        x: chartDates[chartDates.length - 1].slice(5) + (
+                                            getHolidayType(chartDates[chartDates.length - 1]).type !== 'workday'
+                                                ? '\n' + (getHolidayType(chartDates[chartDates.length - 1]).type === 'weekend' ? '🟡' : '🔴')
+                                                : (lowDates.includes(chartDates[chartDates.length - 1]) ? '\n🟠' : '')
                                         ),
                                         borderColor: '#f43f5e', strokeDashArray: 4,
                                         label: { text: '예측시작', position: 'top', textAnchor: 'start', orientation: 'horizontal', style: { background: 'rgba(244,63,94,.9)', color: '#fff', fontSize: '10px', fontWeight: 900 } }
