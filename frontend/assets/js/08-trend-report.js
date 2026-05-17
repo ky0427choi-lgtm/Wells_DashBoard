@@ -509,16 +509,14 @@ function renderTabTrend(body) {
     const lowDiPct = lowTotal > 0 ? Math.round(lowAvgDI / lowTotal * 100) : 0;
     const lowToPct = lowTotal > 0 ? 100 - lowDiPct : 0;
 
-    // ★ v4.9: 두 번째 KPI (주말 & 특정일 평균)를 위해 주말 + 저조기 날짜 통합
-    const weDatesArray = window._trCtx.weDates || [];
-    const weAndLowDates = [...weDatesArray, ...lowDates];
-    const weLowValsDI = weAndLowDates.map(d => diByDate[d] || 0);
-    const weLowValsTO = weAndLowDates.map(d => toByDate[d] || 0);
-    const weLowAvgDI = weLowValsDI.length ? Math.round(weLowValsDI.reduce((a, b) => a + b, 0) / weLowValsDI.length) : 0;
-    const weLowAvgTO = weLowValsTO.length ? Math.round(weLowValsTO.reduce((a, b) => a + b, 0) / weLowValsTO.length) : 0;
-    const weLowTotal = weLowAvgDI + weLowAvgTO;
-    const weLowDiPct = weLowTotal > 0 ? Math.round(weLowAvgDI / weLowTotal * 100) : 0;
-    const weLowToPct = weLowTotal > 0 ? 100 - weLowDiPct : 0;
+    // ★ v4.10: 특정일(저조기) 평균 (주말 제외, 평일 중 수치가 급감한 날만 계산)
+    const lowValsDI = lowDates.map(d => diByDate[d] || 0);
+    const lowValsTO = lowDates.map(d => toByDate[d] || 0);
+    const lowAvgDI = lowValsDI.length ? Math.round(lowValsDI.reduce((a, b) => a + b, 0) / lowValsDI.length) : 0;
+    const lowAvgTO = lowValsTO.length ? Math.round(lowValsTO.reduce((a, b) => a + b, 0) / lowValsTO.length) : 0;
+    const lowTotal = lowAvgDI + lowAvgTO;
+    const lowDiPct = lowTotal > 0 ? Math.round(lowAvgDI / lowTotal * 100) : 0;
+    const lowToPct = lowTotal > 0 ? 100 - lowDiPct : 0;
 
     // 조식 실측
     const joVals = wdDates.map(d => byDate['조식']?.[d] || 0).filter(v => v > 0);
@@ -573,7 +571,8 @@ function renderTabTrend(body) {
        - 없으면 클라이언트 WMA로 실시간 산출 */
     const lastDate = new Date(dates[dates.length - 1] + 'T00:00:00');
     const foreRows = [];
-    for (let i = 1; i <= 5; i++) {
+    // ★ v4.10: 미래 예측을 1주(7일)로 연장
+    for (let i = 1; i <= 7; i++) {
         const fd = new Date(lastDate); fd.setDate(fd.getDate() + i);
         const ds = _toYMD(fd), ht = getHolidayType(ds);
         const isOff = ht.type !== 'workday';
@@ -587,17 +586,20 @@ function renderTabTrend(body) {
     /* ★ v4.0: 편차 패턴 감지 실행 */
     const patternResult = detectSpecialMealPattern(dates, getMkVal, wdDates);
 
-    // 차트용 시계열 데이터 (과거 + 예측)
-    const allDates = [...dates, ...foreRows.map(r => r.ds)];
-    const histData = dates.map(d => getMkVal(d));
-    const foreData = [...new Array(dates.length).fill(null), ...foreRows.map(r => r.fv)];
-    foreData[dates.length - 1] = getMkVal(dates[dates.length - 1]);
+    // ★ v4.10: 차트용 시계열 데이터를 최근 과거 2주(14일) + 예측 1주로 제한
+    const chartDates = dates.slice(-14);
+    const allDates = [...chartDates, ...foreRows.map(r => r.ds)];
+    const histData = chartDates.map(d => getMkVal(d));
+    const foreData = [...new Array(chartDates.length).fill(null), ...foreRows.map(r => r.fv)];
+    // 실적 선과 예측 선 잇기
+    foreData[chartDates.length - 1] = getMkVal(chartDates[chartDates.length - 1]);
+    
     const xLabels = allDates.map(d => {
         const ht = getHolidayType(d).type;
         const tag = ht === 'weekend' ? '🟡' : ht === 'holiday' ? '🔴' : lowDates.includes(d) ? '🟠' : '';
         return d.slice(5) + (tag ? '\n' + tag : '');
     });
-    const pointColors = dates.map(d => lowDates.includes(d) ? '#fbbf24' : mkColor);
+    const pointColors = chartDates.map(d => lowDates.includes(d) ? '#fbbf24' : mkColor);
 
     /* ★ v4.4: 전년 대비(YoY) 비교 요약 계산 */
     let yoyHtml = "";
@@ -619,7 +621,7 @@ function renderTabTrend(body) {
     <!-- KPI 핵심 지표 (1행 4열 반응형) -->
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-bottom:14px">
         <div class="kpi-v2 accent"><div class="kv2-lbl" style="white-space:nowrap">평일 평균</div><div class="kv2-val" style="color:${mkColor}">${normTotal.toLocaleString()}<span style="font-size:11px;opacity:.7"> 식</span></div><div class="kv2-sub">D/I ${normAvgDI.toLocaleString()}(${normDiPct}%) · T/O ${normAvgTO.toLocaleString()}(${normToPct}%)</div></div>
-        <div class="kpi-v2 warning"><div class="kv2-lbl" style="white-space:nowrap">주말&특정일 평균</div><div class="kv2-val" style="color:#fbbf24">${weLowTotal > 0 ? weLowTotal.toLocaleString() : '-'}<span style="font-size:11px;opacity:.7"> 식</span></div><div class="kv2-sub">${weLowTotal > 0 ? `D/I ${weLowAvgDI.toLocaleString()}(${weLowDiPct}%) · T/O ${weLowAvgTO.toLocaleString()}(${weLowToPct}%)` : '주말 및 특이데이터 없음'}</div></div>
+        <div class="kpi-v2 warning"><div class="kv2-lbl" style="white-space:nowrap">특정일 평균</div><div class="kv2-val" style="color:#fbbf24">${lowTotal > 0 ? lowTotal.toLocaleString() : '-'}<span style="font-size:11px;opacity:.7"> 식</span></div><div class="kv2-sub">${lowTotal > 0 ? `D/I ${lowAvgDI.toLocaleString()}(${lowDiPct}%) · T/O ${lowAvgTO.toLocaleString()}(${lowToPct}%)` : '평일 중 급감한 데이터 없음'}</div></div>
         <div class="kpi-v2 danger"><div class="kv2-lbl" style="white-space:nowrap">식수 변동폭</div><div class="kv2-val" style="color:#f87171">▼${dropPct}<span style="font-size:14px;opacity:.7">%</span></div><div class="kv2-sub">평일 평균대비 하락율</div></div>
         <div class="kpi-v2 ${trendPct > 0 ? 'success' : trendPct < 0 ? 'danger' : 'warning'}"><div class="kv2-lbl" style="white-space:nowrap">최근 2주 추이 (평일)</div><div class="kv2-val" style="color:${trendCls}">${r10avg.toLocaleString()}<span style="font-size:11px;opacity:.7"> 식</span></div><div class="kv2-sub">${trendPct > 0 ? '↑' : '↓'} ${Math.abs(trendPct)}% vs 기간평균</div></div>
     </div>
@@ -703,12 +705,12 @@ function renderTabTrend(body) {
                                                 if (!clickDate) return;
                                                 const infoBox = document.getElementById('chartTrendClickInfo');
                                                 if (!infoBox) return;
-                                                const isForecast = idx >= dates.length;
+                                                const isForecast = idx >= chartDates.length;
                                                 const dayType = getHolidayType(clickDate);
                                                 const DOW_MAP = ['일', '월', '화', '수', '목', '금', '토'];
                                                 const dayOfWeek = DOW_MAP[new Date(clickDate + 'T00:00:00').getDay()];
                                                 const totalVal = getMkVal(clickDate);
-                                                const foreVal = isForecast ? foreRows[idx - dates.length] : null;
+                                                const foreVal = isForecast ? foreRows[idx - chartDates.length] : null;
                                                 /* DI/TO 분리 계산 (모든 끼니) */
                                                 let ditoHtml = '';
                                                 const mkKey = mk === '합계' ? '중식' : mk; // 합계인 경우 전체 식수 합산
