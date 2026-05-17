@@ -22,6 +22,7 @@ function fetchJSONP(url) {
         const callbackName = 'jsonp_cb_' + Math.round(100000 * Math.random());
         let script = document.createElement('script');
         let timeoutId;
+        let completed = false;
 
         const cleanup = () => {
             if (timeoutId) clearTimeout(timeoutId);
@@ -30,26 +31,32 @@ function fetchJSONP(url) {
         };
 
         window[callbackName] = function(data) {
+            if (completed) return;
+            completed = true;
             cleanup();
             resolve(data);
         };
 
         script.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'callback=' + callbackName;
         script.onerror = () => {
+            if (completed) return;
+            completed = true;
             cleanup();
             reject(new Error('JSONP Request Failed'));
         };
         document.body.appendChild(script);
 
-        // ★ JSONP Timeout Fallback (3초)
+        // ★ JSONP Timeout Fallback (15초) - GAS 지연 대비 연장
         timeoutId = setTimeout(() => {
+            if (completed) return;
+            completed = true;
             cleanup();
             console.warn('⚠️ JSONP timeout, fallback to fetch:', url);
             fetch(url.replace(/&callback=jsonp_cb_\d+/, ''), { redirect: "follow" })
                 .then(r => r.json())
                 .then(resolve)
                 .catch(reject);
-        }, 3000);
+        }, 15000);
     });
 }
 
