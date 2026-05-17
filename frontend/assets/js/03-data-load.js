@@ -20,19 +20,36 @@ async function _openDB() {
 function fetchJSONP(url) {
     return new Promise((resolve, reject) => {
         const callbackName = 'jsonp_cb_' + Math.round(100000 * Math.random());
-        window[callbackName] = function(data) {
+        let script = document.createElement('script');
+        let timeoutId;
+
+        const cleanup = () => {
+            if (timeoutId) clearTimeout(timeoutId);
             delete window[callbackName];
-            document.body.removeChild(script);
+            if (script && script.parentNode) document.body.removeChild(script);
+        };
+
+        window[callbackName] = function(data) {
+            cleanup();
             resolve(data);
         };
-        const script = document.createElement('script');
+
         script.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'callback=' + callbackName;
         script.onerror = () => {
-            delete window[callbackName];
-            document.body.removeChild(script);
+            cleanup();
             reject(new Error('JSONP Request Failed'));
         };
         document.body.appendChild(script);
+
+        // ★ JSONP Timeout Fallback (3초)
+        timeoutId = setTimeout(() => {
+            cleanup();
+            console.warn('⚠️ JSONP timeout, fallback to fetch:', url);
+            fetch(url.replace(/&callback=jsonp_cb_\d+/, ''), { redirect: "follow" })
+                .then(r => r.json())
+                .then(resolve)
+                .catch(reject);
+        }, 3000);
     });
 }
 
@@ -74,6 +91,7 @@ async function loadPerfFromGAS(force = false) {
         const serverVer = await _getServerVersion();
         if (serverVer === "auth_expired") {
             _gasPerfLoading = false;
+            _gasPerfLoaded = true; // 무한루프 방지
             return;
         }
         const localVer = localStorage.getItem(PERF_VER_KEY) || "0";
@@ -86,16 +104,23 @@ async function loadPerfFromGAS(force = false) {
             }
         }
         const d = await fetchJSONP(API + "?type=perf&tk=" + TK);
-        if (d.error === "auth_expired") return;
+        if (d.error === "auth_expired") {
+            _gasPerfLoaded = true;
+            return;
+        }
         if (d.perf && Array.isArray(d.perf)) {
             _applyPerfData(d);
             await _dbPut('perf_json', d);
             const verToSave = String(d.version || serverVer || "0");
             localStorage.setItem(PERF_VER_KEY, verToSave);
-            _gasPerfLoaded = true;
         }
-    } catch (e) { console.error("Load failed:", e); }
-    finally { _gasPerfLoading = false; }
+    } catch (e) { 
+        console.error("Load failed:", e); 
+    }
+    finally { 
+        _gasPerfLoaded = true; // 예외 발생 시에도 락 해제
+        _gasPerfLoading = false; 
+    }
 }
 
 /**
