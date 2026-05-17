@@ -519,14 +519,6 @@ function renderTabTrend(body) {
     const normDiPct = normTotal > 0 ? Math.round(normAvgDI / normTotal * 100) : 0;
     const normToPct = normTotal > 0 ? 100 - normDiPct : 0;
 
-    const lowValsDI = lowDates.map(d => diByDate[d] || 0);
-    const lowValsTO = lowDates.map(d => toByDate[d] || 0);
-    const lowAvgDI = lowValsDI.length ? Math.round(lowValsDI.reduce((a, b) => a + b, 0) / lowValsDI.length) : 0;
-    const lowAvgTO = lowValsTO.length ? Math.round(lowValsTO.reduce((a, b) => a + b, 0) / lowValsTO.length) : 0;
-    const lowTotal = lowAvgDI + lowAvgTO;
-    const lowDiPct = lowTotal > 0 ? Math.round(lowAvgDI / lowTotal * 100) : 0;
-    const lowToPct = lowTotal > 0 ? 100 - lowDiPct : 0;
-
     // ★ v4.10: 특정일(저조기) 평균 (주말 제외, 평일 중 수치가 급감한 날만 계산)
     const lowValsDI = lowDates.map(d => diByDate[d] || 0);
     const lowValsTO = lowDates.map(d => toByDate[d] || 0);
@@ -562,6 +554,28 @@ function renderTabTrend(body) {
         const testN = Math.min(4, Math.floor(normalDates.length / 3));
         if (testN > 0) {
             const trainDates = normalDates.slice(0, -testN);
+            const testDatesList = normalDates.slice(-testN);
+            let sumAPE = 0, validN = 0;
+            testDatesList.forEach(td => {
+                /* WMA 백테스트: 훈련 데이터만으로 예측 */
+                const pred = wmaForecast(trainDates, d => getMkVal(d), td);
+                const actual = getMkVal(td);
+                if (actual > 0 && pred > 0) {
+                    sumAPE += Math.abs(actual - pred) / actual;
+                    validN++;
+                }
+            });
+            if (validN > 0) {
+                const mape = sumAPE / validN * 100;
+                aiAccuracy = Math.max(0, Math.round(100 - mape));
+            }
+        }
+    }
+    const aiAccText = aiAccuracy != null ? `${aiAccuracy}%` : '산출불가';
+    const aiAccColor = aiAccuracy != null
+        ? (aiAccuracy >= 80 ? '#34d399' : aiAccuracy >= 60 ? '#fbbf24' : '#f87171')
+        : 'var(--dim)';
+
     /* ★ v4.11: WMA 기반 예측 행 생성 (Today 기준 고정)
        - 저장된 GAS 예측값 우선 (실측반영된 정확도 보존)
        - 없으면 클라이언트 WMA로 실시간 산출 */
