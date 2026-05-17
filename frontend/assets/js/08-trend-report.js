@@ -236,7 +236,7 @@ function getMergedTrendData() {
     if (window._mergedTrendCache && !window._mergedTrendForceRefresh) return window._mergedTrendCache;
 
     const baseline = window._gasTrendBaseline || [];
-    const recent = _gasPerfCache || [];
+    const recent = window._gasPerfCache || [];
     const mergedMap = {};
     
     // 2. 베이스라인 적용 (모든 과거 데이터의 근간)
@@ -275,28 +275,59 @@ function getMergedTrendData() {
     return window._mergedTrendCache;
 }
 
+window._trendSummaryCache = null; // 요약 통계 캐시
+
+/**
+ * ★ v4.5: 사전 계산된 요약 통계를 JSONP로 불러옵니다.
+ */
+function loadTrendSummary() {
+    if (window._trendSummaryLoading) return;
+    window._trendSummaryLoading = true;
+    
+    fetchJSONP(`${API}?type=trendSummary&tk=${TK}`)
+        .then(data => {
+            if (data && data.summary) {
+                window._trendSummaryCache = data.summary;
+                console.log("💡 Trend Summary Loaded (Pre-calculated)");
+                // 요약 로드 후 리포트 즉시 갱신 (이미 로드된 상태면 무시)
+                if (_trendActiveTab === 'trend' || _trendActiveTab === 'report') {
+                    renderTrendReport();
+                }
+            }
+        })
+        .catch(e => console.warn("Trend Summary Fetch Error:", e))
+        .finally(() => { window._trendSummaryLoading = false; });
+}
+
 function renderTrendReport() {
     const body = document.getElementById("trend-body");
     
+    // 0. 사전 연산된 통계 캐시 로드 시도
+    if (!window._trendSummaryCache && !window._trendSummaryLoading) {
+        loadTrendSummary();
+    }
+
     // 1. 베이스라인 로드 시도 (아직 로드되지 않았고 로딩 중도 아닐 때만)
     if (!window._gasTrendBaselineLoaded && !window._gasTrendBaselineLoading) {
         loadTrendBaselineFromGAS(); // 비동기로 호출만 하고 넘어감
     }
 
     // 2. 로딩 중이면 스피너 표시 후 즉시 종료 (무한 루프 방지)
-    if (window._gasTrendBaselineLoading || !window._gasTrendBaselineLoaded) {
+    const isBaselineReady = window._gasTrendBaselineLoaded === true;
+    const isPerfReady = window._gasPerfLoaded === true;
+    if (window._gasTrendBaselineLoading || !isBaselineReady || window._gasPerfLoading || !isPerfReady) {
         if (!body.innerHTML.includes("spinner")) {
             body.innerHTML = `
                 <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:300px;color:var(--dim)">
                     <div class="spinner" style="width:30px;height:30px;border:3px solid rgba(56,189,248,.1);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite;margin-bottom:12px"></div>
-                    <div style="font-size:12px;font-weight:700">AI 분석 베이스라인 로드 중...</div>
+                    <div style="font-size:12px;font-weight:700">AI 분석 데이터 및 실적 병합 중...</div>
                 </div>`;
         }
         
         // 로딩 완료 후 자동으로 다시 그려지도록 인터벌 체크 (안전 장치)
         if (!window._trendLoadCheckTimer) {
             window._trendLoadCheckTimer = setInterval(() => {
-                if (window._gasTrendBaselineLoaded) {
+                if (window._gasTrendBaselineLoaded && window._gasPerfLoaded) {
                     clearInterval(window._trendLoadCheckTimer);
                     window._trendLoadCheckTimer = null;
                     window._mergedTrendForceRefresh = true;
