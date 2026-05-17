@@ -17,47 +17,26 @@ async function _openDB() {
 /**
  * ★ v4.8: CORS 보안 차단을 우회하는 초고속 JSONP 로더
  */
-function fetchJSONP(url) {
-    return new Promise((resolve, reject) => {
-        const callbackName = 'jsonp_cb_' + Math.round(100000 * Math.random());
-        let script = document.createElement('script');
-        let timeoutId;
-        let completed = false;
-
-        const cleanup = () => {
-            if (timeoutId) clearTimeout(timeoutId);
-            delete window[callbackName];
-            if (script && script.parentNode) document.body.removeChild(script);
-        };
-
-        window[callbackName] = function(data) {
-            if (completed) return;
-            completed = true;
-            cleanup();
-            resolve(data);
-        };
-
-        script.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'callback=' + callbackName;
-        script.onerror = () => {
-            if (completed) return;
-            completed = true;
-            cleanup();
-            reject(new Error('JSONP Request Failed'));
-        };
-        document.body.appendChild(script);
-
-        // ★ JSONP Timeout Fallback (15초) - GAS 지연 대비 연장
-        timeoutId = setTimeout(() => {
-            if (completed) return;
-            completed = true;
-            cleanup();
-            console.warn('⚠️ JSONP timeout, fallback to fetch:', url);
-            fetch(url.replace(/&callback=jsonp_cb_\d+/, ''), { redirect: "follow" })
-                .then(r => r.json())
-                .then(resolve)
-                .catch(reject);
-        }, 15000);
-    });
+// ★ v4.6: JSONP 방식 폐기 (다중 구글 계정 쿠키 충돌로 인한 접근 불가 현상 방지)
+// 브라우저의 기본 fetch는 자격 증명(쿠키)을 전송하지 않으므로 GAS 익명 접근에 최적화됨.
+async function fetchJSONP(url) {
+    try {
+        // 기존 &callback= 파라미터 제거
+        const cleanUrl = url.replace(/&callback=jsonp_cb_\d+/, '');
+        const response = await fetch(cleanUrl, { 
+            method: 'GET',
+            redirect: 'follow', // GAS 리다이렉트(302) 자동 추적
+            cache: 'no-store'
+        });
+        if (!response.ok) {
+            throw new Error(`HTTP Error: ${response.status}`);
+        }
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error('Fetch Error:', error);
+        throw error;
+    }
 }
 
 async function _dbGet(key) {
