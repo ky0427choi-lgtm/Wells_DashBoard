@@ -11,12 +11,13 @@ window.svSeat = async function (u, sn) {
     so();
     render();
 
-    try {
-        const seatData = { tk: TK, action: 'updateSeats', siteName: sn, seats: Number(document.getElementById(`ov_${u}_좌석수`).value || 0), corners: Number(document.getElementById(`ov_${u}_코너수`).value || 0), toCorners: Number(document.getElementById(`ov_${u}_TO_코너수`).value || 0) };
-        const r = await fetch(API, { method: 'POST', body: JSON.stringify(seatData), redirect: 'follow' });
-        const t = await r.text();
-        if (t.includes('Success')) console.log('✓ 좌석수 시트 저장 완료:', sn);
-    } catch (e) { console.warn('좌석수 시트 저장 실패:', e.message); }
+    const seatData = { tk: TK, action: 'updateSeats', siteName: sn, seats: Number(document.getElementById(`ov_${u}_좌석수`).value || 0), corners: Number(document.getElementById(`ov_${u}_코너수`).value || 0), toCorners: Number(document.getElementById(`ov_${u}_TO_코너수`).value || 0) };
+    fetch(API, { method: 'POST', body: JSON.stringify(seatData), redirect: 'follow' })
+        .then(r => r.text())
+        .then(t => {
+            if (t.includes('Success')) console.log('✓ 좌석수 시트 저장 완료:', sn);
+        })
+        .catch(e => console.warn('좌석수 시트 저장 실패:', e.message));
 };
 
 window.svEdit = function (u, sn) {
@@ -223,27 +224,29 @@ window.svRec = async function (btnOrU, uOrSn, snOrRg, rg) {
     const msg = document.getElementById(`fm_${u}`);
     if (btn) { btn.disabled = true; btn.innerText = "저장 중..."; }
 
-    try {
-        const r = await fetch(API, { method: "POST", body: JSON.stringify(p), redirect: "follow" });
-        const t = await r.text();
-        if (t.includes("Success")) {
-            if (msg) {
-                msg.style.color = "var(--success)";
-                msg.innerText = "✅ 저장 완료";
+    fetch(API, { method: "POST", body: JSON.stringify(p), redirect: "follow" })
+        .then(r => r.text())
+        .then(t => {
+            if (t.includes("Success")) {
+                if (msg) {
+                    msg.style.color = "var(--success)";
+                    msg.innerText = "✅ 저장 완료";
+                }
+                // 추이 분석 캐시 갱신 예약
+                window._mergedTrendForceRefresh = true;
+            } else {
+                if (msg) {
+                    msg.style.color = "var(--danger)";
+                    msg.innerText = "❌ " + t;
+                }
             }
-            // 추이 분석 캐시 갱신 예약
-            window._mergedTrendForceRefresh = true;
-        } else {
-            if (msg) {
-                msg.style.color = "var(--danger)";
-                msg.innerText = "❌ " + t;
-            }
-        }
-    } catch (e) {
-        if (msg) { msg.style.color = "var(--warning)"; msg.innerText = "⚠️ 서버 오류 (로컬 저장 완료)"; }
-    } finally {
-        if (btn) { btn.disabled = false; btn.innerText = "💾 저장"; }
-    }
+        })
+        .catch(e => {
+            if (msg) { msg.style.color = "var(--warning)"; msg.innerText = "⚠️ 서버 오류 (로컬 저장 완료)"; }
+        })
+        .finally(() => {
+            if (btn) { btn.disabled = false; btn.innerText = "💾 저장"; }
+        });
 };
 
 // --- 커스텀 태그 관리 ---
