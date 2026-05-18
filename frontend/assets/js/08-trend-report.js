@@ -398,7 +398,9 @@ function renderTrendReport() {
     const normalDates = wdDates.filter(d => !lowDates.includes(d) && getMkVal(d) > 0);
 
     // ★ v4.11: 평일 평균 산출 기준을 '전체 과거'가 아닌 '최근 30일'로 제한 (계절성 편차 방지)
-    const todayForFilter = new Date();
+    // ★ v4.12: 데이터가 있는 마지막 날을 기준으로 앵커링 (기존 new Date() 시 -100% 오류 방지)
+    const maxDateStr = dates[dates.length - 1];
+    const todayForFilter = new Date(maxDateStr + "T00:00:00");
     const minDate30 = new Date(todayForFilter); minDate30.setDate(todayForFilter.getDate() - 30);
     const minDate60 = new Date(todayForFilter); minDate60.setDate(todayForFilter.getDate() - 60);
     const min30Str = _toYMD(minDate30);
@@ -579,7 +581,9 @@ function renderTabTrend(body) {
     /* ★ v4.11: WMA 기반 예측 행 생성 (Today 기준 고정)
        - 저장된 GAS 예측값 우선 (실측반영된 정확도 보존)
        - 없으면 클라이언트 WMA로 실시간 산출 */
-    const todayObj = new Date();
+    // ★ v4.12: 데이터가 있는 마지막 날을 기준으로 앵커링 (기존 new Date() 시 -100% 오류 방지)
+    const maxDateStr = dates[dates.length - 1];
+    const todayObj = new Date(maxDateStr + "T00:00:00");
     const foreRows = [];
     // ★ v4.11: 미래 예측을 Today+1 ~ Today+7 (1주)로 설정
     for (let i = 1; i <= 7; i++) {
