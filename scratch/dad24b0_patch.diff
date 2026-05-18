@@ -1,0 +1,211 @@
+﻿commit dad24b09a6fb1fa1a71cd4adf518264ccd6e57ba
+Author: JARVIS Developer <jarvis@ainpapa.com>
+Date:   Sat May 16 17:32:55 2026 +0900
+
+    feat: Refine Trend Report with Special Day separation and DI/TO details
+
+diff --git a/frontend/assets/js/08-trend-report.js b/frontend/assets/js/08-trend-report.js
+index 56c389e..a3a7199 100644
+--- a/frontend/assets/js/08-trend-report.js
++++ b/frontend/assets/js/08-trend-report.js
+@@ -442,8 +442,7 @@ function renderTabTrend(body) {
+         normAvg, lowAvg, dropPct, mk, mkColor, getMkVal, normVals, regionLabel, selectedSites } = window._trCtx;
+     const sfilt = window._trendSiteFilter || [];
+ 
+-    // DI / TO 遺꾨━
+-    /* ??v3.9 ?섏젙: ?⑷퀎 ?좏깮 ??紐⑤뱺 ?쇰땲 DI/TO ?⑹궛 (湲곗〈: 以묒떇留??ъ슜) */
++    // DI / TO 遺꾨━ (紐⑤뱺 ?쇰땲 ???
+     const diByDate = {}, toByDate = {};
+     const MEALS_ALL = ['議곗떇', '以묒떇', '?앹떇', '?쇱떇'];
+     filtRecs.forEach(r => {
+@@ -462,6 +461,26 @@ function renderTabTrend(body) {
+     const sumDITO = totalDI + totalTO || 1;
+     const diPct = Math.round(totalDI / sumDITO * 100), toPct = 100 - diPct;
+ 
++    // ?됱씪/二쇰쭚/理쒖????됯퇏 ?곗씠??遺꾨━ (DI/TO ?ы븿)
++    const normalValsDI = normalDates.map(d => diByDate[d] || 0);
++    const normalValsTO = normalDates.map(d => toByDate[d] || 0);
++    const normAvgDI = normalValsDI.length ? Math.round(normalValsDI.reduce((a, b) => a + b, 0) / normalValsDI.length) : 0;
++    const normAvgTO = normalValsTO.length ? Math.round(normalValsTO.reduce((a, b) => a + b, 0) / normalValsTO.length) : 0;
++    const normTotal = normAvgDI + normAvgTO;
++    const normDiPct = normTotal > 0 ? Math.round(normAvgDI / normTotal * 100) : 0;
++    const normToPct = normTotal > 0 ? 100 - normDiPct : 0;
++
++    const lowValsDI = lowDates.map(d => diByDate[d] || 0);
++    const lowValsTO = lowDates.map(d => toByDate[d] || 0);
++    const lowAvgDI = lowValsDI.length ? Math.round(lowValsDI.reduce((a, b) => a + b, 0) / lowValsDI.length) : 0;
++    const lowAvgTO = lowValsTO.length ? Math.round(lowValsTO.reduce((a, b) => a + b, 0) / lowValsTO.length) : 0;
++    const lowTotal = lowAvgDI + lowAvgTO;
++    const lowDiPct = lowTotal > 0 ? Math.round(lowAvgDI / lowTotal * 100) : 0;
++    const lowToPct = lowTotal > 0 ? 100 - lowDiPct : 0;
++
++    const weVals = weDates.map(d => getMkVal(d)).filter(v => v > 0);
++    const weAvgRaw = weVals.length ? Math.round(weVals.reduce((a, b) => a + b, 0) / weVals.length) : 0;
++
+     // 議곗떇 ?ㅼ륫
+     const joVals = wdDates.map(d => byDate['議곗떇']?.[d] || 0).filter(v => v > 0);
+     const joAvg = joVals.length ? Math.round(joVals.reduce((a, b) => a + b, 0) / joVals.length) : 0;
+@@ -559,16 +578,15 @@ function renderTabTrend(body) {
+     <div class="fade-in" style="padding:4px 0 16px">
+     ${mkFilterHTML(mk, sites, sfilt)}
+     <!-- KPI ?듭떖 吏??(1??4??諛섏쓳?? -->
+-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px">
+-        <div class="kpi-v2 accent"><div class="kv2-lbl" style="white-space:nowrap">?뺤긽 ?됱씪 ?됯퇏</div><div class="kv2-val" style="color:${mkColor}">${normAvg.toLocaleString()}<span style="font-size:11px;opacity:.7"> ??/span></div><div class="kv2-sub">${mk === '以묒떇' ? `DI ${diPct}% 쨌 T/O ${toPct}%` : mk}</div></div>
+-        <div class="kpi-v2 warning"><div class="kv2-lbl" style="white-space:nowrap">?議곌린 ?됯퇏</div><div class="kv2-val" style="color:#fbbf24">${lowAvg > 0 ? lowAvg.toLocaleString() : '-'}<span style="font-size:11px;opacity:.7"> ??/span></div><div class="kv2-sub">${lowDates.length}???대떦</div></div>
+-        <div class="kpi-v2 danger"><div class="kv2-lbl" style="white-space:nowrap">?議곌린 ?숉룺</div><div class="kv2-val" style="color:#f87171">??{dropPct}<span style="font-size:14px;opacity:.7">%</span></div><div class="kv2-sub">?뺤긽 ?鍮?/div></div>
+-        <div class="kpi-v2 ${trendPct > 0 ? 'success' : trendPct < 0 ? 'danger' : 'warning'}"><div class="kv2-lbl" style="white-space:nowrap">理쒓렐 7??異붿씠</div><div class="kv2-val" style="color:${trendCls}">${r7avg.toLocaleString()}<span style="font-size:11px;opacity:.7"> ??/span></div><div class="kv2-sub">${trendPct > 0 ? '?? : '??} ${Math.abs(trendPct)}% vs ?꾩껜</div></div>
+-        ${yoyHtml}
++    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-bottom:14px">
++        <div class="kpi-v2 accent"><div class="kv2-lbl" style="white-space:nowrap">?됱씪 ?됯퇏 (?뺤긽)</div><div class="kv2-val" style="color:${mkColor}">${normTotal.toLocaleString()}<span style="font-size:11px;opacity:.7"> ??/span></div><div class="kv2-sub">D/I ${normAvgDI.toLocaleString()}(${normDiPct}%) 쨌 T/O ${normAvgTO.toLocaleString()}(${normToPct}%)</div></div>
++        <div class="kpi-v2 warning"><div class="kv2-lbl" style="white-space:nowrap">理쒖????됯퇏 (?뱀씠)</div><div class="kv2-val" style="color:#fbbf24">${lowTotal > 0 ? lowTotal.toLocaleString() : '-'}<span style="font-size:11px;opacity:.7"> ??/span></div><div class="kv2-sub">${lowTotal > 0 ? `D/I ${lowAvgDI.toLocaleString()}(${lowDiPct}%) 쨌 T/O ${lowAvgTO.toLocaleString()}(${lowToPct}%)` : '媛먯????곗씠???놁쓬'}</div></div>
++        <div class="kpi-v2 danger"><div class="kv2-lbl" style="white-space:nowrap">?앹닔 蹂?숉룺</div><div class="kv2-val" style="color:#f87171">??{dropPct}<span style="font-size:14px;opacity:.7">%</span></div><div class="kv2-sub">?뺤긽 ?됱씪 ?鍮??섎씫瑜?/div></div>
++        <div class="kpi-v2 ${trendPct > 0 ? 'success' : trendPct < 0 ? 'danger' : 'warning'}"><div class="kv2-lbl" style="white-space:nowrap">理쒓렐 7??異붿씠 (?됱씪湲곗?)</div><div class="kv2-val" style="color:${trendCls}">${r7avg.toLocaleString()}<span style="font-size:11px;opacity:.7"> ??/span></div><div class="kv2-sub">${trendPct > 0 ? '?? : '??} ${Math.abs(trendPct)}% vs 湲곌컙?됯퇏</div></div>
+     </div>
+-    <!-- ?숉룺 諛??⑤꼸 -->
++    <!-- ?앹닔 蹂?숉룺(理쒖??? 遺꾩꽍 ?⑤꼸 -->
+     <div class="ch-panel" style="margin-bottom:14px;padding:14px 16px">
+-        <div style="font-size:11px;font-weight:900;margin-bottom:10px">?뱣 ?뺤긽 ?鍮??議곌린 ?숉룺</div>
++        <div style="font-size:11px;font-weight:900;margin-bottom:10px">?뱣 ?뺤긽 ?됱씪 ?鍮?理쒖????앹닔 蹂??/div>
+         ${['以묒떇', '?⑷퀎', '?앹떇', '議곗떇'].map(m => {
+         const mv_n = normalDates.map(d => m === '?⑷퀎' ? ['議곗떇', '以묒떇', '?앹떇', '?쇱떇'].reduce((s, mx) => s + (byDate[mx]?.[d] || 0), 0) : (byDate[m]?.[d] || 0)).filter(v => v > 0);
+         const mv_l = lowDates.map(d => m === '?⑷퀎' ? ['議곗떇', '以묒떇', '?앹떇', '?쇱떇'].reduce((s, mx) => s + (byDate[mx]?.[d] || 0), 0) : (byDate[m]?.[d] || 0)).filter(v => v > 0);
+@@ -579,11 +597,11 @@ function renderTabTrend(body) {
+         const c = MC[m] || '#38bdf8';
+         return `<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;margin-bottom:2px"><span style="font-size:10px;color:var(--dim)">${m}</span><div style="display:flex;gap:8px;align-items:center"><span style="font-size:9px;color:var(--dim)">${la.toLocaleString()}??{na.toLocaleString()}</span><span style="font-size:11px;font-weight:800;color:#f43f5e">??{dp}%</span></div></div><div style="background:rgba(255,255,255,.04);border-radius:99px;height:5px"><div style="height:100%;border-radius:99px;width:${100 - dp}%;background:linear-gradient(90deg,${c}33,${c})"></div></div></div>`;
+     }).join('')}
+-        ${lowDates.length > 0 ? `<div style="font-size:9px;color:var(--dim);margin-top:8px;line-height:1.5">?윝 ?대떦 ?좎쭨: ${lowDates.map(d => d.slice(5)).join(' 쨌 ')}</div>` : '<div style="font-size:9px;color:var(--dim)">?議곌린 ?곗씠???놁쓬</div>'}
++        ${lowDates.length > 0 ? `<div style="font-size:9px;color:var(--dim);margin-top:8px;line-height:1.5">?윝 ?뱀씠???앹닔湲됯컧): ${lowDates.map(d => d.slice(5)).join(' 쨌 ')}</div>` : '<div style="font-size:9px;color:var(--dim)">媛먯????뱀씠???놁쓬</div>'}
+     </div>
+     <!-- 異붿씠 + ?덉륫 李⑦듃 -->
+     <div class="ch-panel" style="min-height:340px">
+-        <div class="ch-panel-title">?뱢 ${mk} ?쇰퀎 異붿씠 & WMA ?덉륫 <span style="font-size:9px;color:${aiAccColor};font-weight:700;margin-left:6px">?뺥솗??${aiAccText}</span> <span style="font-size:9px;color:var(--dim);font-weight:400">?윝?議곌린 / ?윞二쇰쭚 / ?뵶怨듯쑕??/span></div>
++        <div class="ch-panel-title">?뱢 ${mk} ?쇰퀎 異붿씠 & WMA ?덉륫 <span style="font-size:9px;color:${aiAccColor};font-weight:700;margin-left:6px">?뺥솗??${aiAccText}</span> <span style="font-size:9px;color:var(--dim);font-weight:400">?윝?뱀씠??/ ?윞二쇰쭚 / ?뵶怨듯쑕??/span></div>
+         <div class="chart-scroll-wrap">
+             <div id="chartTrend" class="ch-apex" style="min-width:${Math.max(360, allDates.length * 34)}px; min-height:260px">
+                 <div style="display:flex;align-items:center;justify-content:center;height:260px;opacity:.3">李⑦듃 ?앹꽦 以?..</div>
+@@ -591,12 +609,12 @@ function renderTabTrend(body) {
+         </div>
+         <div id="chartTrendClickInfo" style="display:none;margin-top:10px;padding:12px;background:rgba(56,189,248,.04);border:1px solid rgba(56,189,248,.15);border-radius:10px"></div>
+     </div>
+-    <!-- DI vs T/O -->
+-    ${mk === '以묒떇' || mk === '?⑷퀎' ? `<div class="ch-panel">
+-        <div class="ch-panel-title">?뱤 D/I 쨌 T/O ?쇰퀎 鍮꾩쨷 異붿씠 (理쒓렐 14??</div>
++    <!-- DI vs T/O (紐⑤뱺 ?쇰땲 ?곸슜) -->
++    <div class="ch-panel">
++        <div class="ch-panel-title">?뱤 [${mk}] D/I 쨌 T/O ?쇰퀎 鍮꾩쨷 異붿씠 (理쒓렐 14??</div>
+         <div class="ch-panel-sub">T/O 鍮꾩쑉???믪쓣?섎줉 醫뚯꽍 ?뚯쟾 ?뺣컯 ??쨌 怨듦컙 ?뺤옣 or T/O 肄붾꼫 利앹꽕 寃???좏샇</div>
+         <div id="chartDITO" class="ch-apex"></div>
+-    </div>`: ''}
++    </div>
+     <!-- ??v4.0: ?몄감 ?⑦꽩 ?먮룞 遺꾩꽍 ?⑤꼸 -->
+     ${patternResult.notes.length > 0 ? `
+     <div class="ch-panel" style="border-color:rgba(56,189,248,.12);padding:14px 16px">
+@@ -651,32 +669,37 @@ function renderTabTrend(body) {
+                                                 const dayOfWeek = DOW_MAP[new Date(clickDate + 'T00:00:00').getDay()];
+                                                 const totalVal = getMkVal(clickDate);
+                                                 const foreVal = isForecast ? foreRows[idx - dates.length] : null;
+-                                                /* DI/TO 遺꾨━ 怨꾩궛 (以묒떇??寃쎌슦) */
++                                                /* DI/TO 遺꾨━ 怨꾩궛 (紐⑤뱺 ?쇰땲) */
+                                                 let ditoHtml = '';
+-                                                if (mk === '以묒떇' || mk === '?⑷퀎') {
+-                                                    const mkKey = mk === '?⑷퀎' ? '以묒떇' : mk;
+-                                                    let diVal = 0, toVal = 0;
+-                                                    filtRecs.filter(r => r.date === clickDate).forEach(r => {
++                                                const mkKey = mk === '?⑷퀎' ? '以묒떇' : mk; // ?⑷퀎??寃쎌슦 ??쒕줈 以묒떇 鍮꾩쨷 李멸퀬 ?뱀? ?⑹궛 濡쒖쭅
++                                                let diVal = 0, toVal = 0;
++                                                filtRecs.filter(r => r.date === clickDate).forEach(r => {
++                                                    if (mk === '?⑷퀎') {
++                                                        ['議곗떇', '以묒떇', '?앹떇', '?쇱떇'].forEach(m => {
++                                                            diVal += n(r['DI_' + m]);
++                                                            toVal += n(r['TO_' + m]);
++                                                        });
++                                                    } else {
+                                                         diVal += n(r['DI_' + mkKey]);
+                                                         toVal += n(r['TO_' + mkKey]);
+-                                                    });
+-                                                    if (diVal > 0 || toVal > 0) {
+-                                                        const total = diVal + toVal || 1;
+-                                                        ditoHtml = `<div style="display:flex;gap:12px;margin-top:8px;flex-wrap:wrap">
+-                                                            <div style="padding:6px 10px;background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.2);border-radius:8px;font-size:11px">
+-                                                                ?뵷 ?쇰컲??D/I): <strong style="color:#38bdf8">${diVal.toLocaleString()}紐?/strong>
+-                                                                <span style="color:var(--dim);font-size:9px;margin-left:4px">(${Math.round(diVal / total * 100)}%)</span>
+-                                                            </div>
+-                                                            <div style="padding:6px 10px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);border-radius:8px;font-size:11px">
+-                                                                ?윝 ?뚯씠?ъ븘??T/O): <strong style="color:#fbbf24">${toVal.toLocaleString()}紐?/strong>
+-                                                                <span style="color:var(--dim);font-size:9px;margin-left:4px">(${Math.round(toVal / total * 100)}%)</span>
+-                                                            </div>
+-                                                        </div>`;
+                                                     }
++                                                });
++                                                if (diVal > 0 || toVal > 0) {
++                                                    const total = diVal + toVal || 1;
++                                                    ditoHtml = `<div style="display:flex;gap:12px;margin-top:8px;flex-wrap:wrap">
++                                                        <div style="padding:6px 10px;background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.2);border-radius:8px;font-size:11px">
++                                                            ?뵷 ?쇰컲??D/I): <strong style="color:#38bdf8">${diVal.toLocaleString()}紐?/strong>
++                                                            <span style="color:var(--dim);font-size:9px;margin-left:4px">(${Math.round(diVal / total * 100)}%)</span>
++                                                        </div>
++                                                        <div style="padding:6px 10px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);border-radius:8px;font-size:11px">
++                                                            ?윝 ?뚯씠?ъ븘??T/O): <strong style="color:#fbbf24">${toVal.toLocaleString()}紐?/strong>
++                                                            <span style="color:var(--dim);font-size:9px;margin-left:4px">(${Math.round(toVal / total * 100)}%)</span>
++                                                        </div>
++                                                    </div>`;
+                                                 }
+                                                 const typeBadge = dayType.type === 'weekend' ? '<span style="background:rgba(251,191,36,.15);color:#fbbf24;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:800">?윞 二쇰쭚</span>'
+                                                     : dayType.type === 'holiday' ? '<span style="background:rgba(248,113,113,.12);color:#f87171;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:800">?뵶 怨듯쑕??/span>'
+-                                                        : lowDates.includes(clickDate) ? '<span style="background:rgba(251,191,36,.12);color:#fbbf24;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:800">?윝 ?議곌린</span>'
++                                                        : lowDates.includes(clickDate) ? '<span style="background:rgba(251,191,36,.12);color:#fbbf24;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:800">?윝 ?뱀씠??/span>'
+                                                             : '<span style="background:rgba(56,189,248,.1);color:#38bdf8;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:800">?됱씪</span>';
+                                                 infoBox.style.display = 'block';
+                                                 /* ??v4.0: ?대┃ ?앹뾽???몄감 ?⑦꽩 硫붾え 諛?WMA 蹂댁젙 ?ъ쑀 異붽? */
+@@ -753,8 +776,8 @@ function renderTabTrend(body) {
+                                         borderColor: '#f43f5e', strokeDashArray: 4,
+                                         label: { text: '?덉륫?쒖옉', position: 'top', textAnchor: 'start', orientation: 'horizontal', style: { background: 'rgba(244,63,94,.9)', color: '#fff', fontSize: '10px', fontWeight: 900 } }
+                                     }],
+-                                    yaxis: [{ y: normAvg, borderColor: mkColor + 'cc', strokeDashArray: 0, label: { text: `?뺤긽?됯퇏 ${normAvg}`, position: 'right', textAnchor: 'end', orientation: 'horizontal', style: { background: mkColor, color: '#fff', fontSize: '10px', fontWeight: 900 } } },
+-                                    ...(lowAvg > 0 ? [{ y: lowAvg, borderColor: '#fbbf24cc', strokeDashArray: 0, label: { text: `?議고룊洹?${lowAvg}`, position: 'right', textAnchor: 'end', orientation: 'horizontal', style: { background: '#fbbf24', color: '#000', fontSize: '10px', fontWeight: 900 } } }] : [])]
++                                    yaxis: [{ y: normTotal, borderColor: mkColor + 'cc', strokeDashArray: 0, label: { text: `?됱씪?됯퇏 ${normTotal}`, position: 'right', textAnchor: 'end', orientation: 'horizontal', style: { background: mkColor, color: '#fff', fontSize: '10px', fontWeight: 900 } } },
++                                    ...(lowTotal > 0 ? [{ y: lowTotal, borderColor: '#fbbf24cc', strokeDashArray: 0, label: { text: `理쒖??쇳룊洹?${lowTotal}`, position: 'right', textAnchor: 'end', orientation: 'horizontal', style: { background: '#fbbf24', color: '#000', fontSize: '10px', fontWeight: 900 } } }] : [])]
+                                 },
+                                 tooltip: { ...APEX_BASE.tooltip, y: { formatter: v => v != null ? v.toLocaleString() + '紐? : '-' } },
+                                 legend: { show: false },
+@@ -785,9 +808,7 @@ function renderTabTrend(body) {
+         }, { threshold: 0.1 });
+ 
+         const t1 = document.getElementById('chartTrend'); if (t1) chartObserver.observe(t1);
+-        if (mk === '以묒떇' || mk === '?⑷퀎') {
+-            const t2 = document.getElementById('chartDITO'); if (t2) chartObserver.observe(t2);
+-        }
++        const t2 = document.getElementById('chartDITO'); if (t2) chartObserver.observe(t2);
+     }, 100);
+ }
+ 
+@@ -1110,12 +1131,12 @@ function renderTabReport(body) {
+         const bAvg = isOff ? weAvg : wdAvg;
+         const chg = bAvg > 0 ? ((fv - bAvg) / bAvg * 100).toFixed(1) : 0;
+         const cc = chg > 0 ? '#34d399' : chg < 0 ? '#f87171' : '#fbbf24';
+-        /* ??以묒떇 ?덉륫? DI/TO 鍮꾩쑉濡?遺꾨━ 異쒕젰 */
++        /* ??紐⑤뱺 ?쇰땲 ?덉륫? DI/TO 鍮꾩쑉濡?遺꾨━ 異쒕젰 */
+         const diRatio = rptSumAll > 0 ? rptTotalDI / rptSumAll : 0.7;
+         const toRatio = 1 - diRatio;
+         const estDI = Math.round(fv * diRatio);
+         const estTO = Math.round(fv * toRatio);
+-        const ditoInfo = (mk === '以묒떇' || mk === '?⑷퀎') ? `<br><span style="font-size:9px;color:var(--dim)">?쇰컲??~${estDI.toLocaleString()} / T/O ~${estTO.toLocaleString()}</span>` : '';
++        const ditoInfo = `<br><span style="font-size:9px;color:var(--dim)">?쇰컲??~${estDI.toLocaleString()} / T/O ~${estTO.toLocaleString()}</span>`;
+         return `<tr${isOff ? ' style="opacity:.6"' : ''}><td>${ds.slice(5)}</td><td>${badge}</td><td style="color:var(--accent3);font-weight:900">${fv.toLocaleString()}??{ditoInfo}</td><td style="color:${cc};font-weight:800">${chg > 0 ? '+' : ''}${chg}%</td></tr>`;
+     }).join('')}</tbody>
+         </table></div>
+@@ -1216,13 +1237,10 @@ function renderTabReport(body) {
+                                     document.getElementById('chartForecast').parentNode.insertBefore(infoEl, document.getElementById('chartForecast').nextSibling);
+                                 }
+                                 const badge = fr.isOff ? `<span style="background:rgba(248,113,113,.12);color:#f87171;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:800">${fr.ht.label || '?댁씪'}</span>` : `<span style="background:rgba(56,189,248,.1);color:#38bdf8;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:800">?됱씪</span>`;
+-                                let ditoDetail = '';
+-                                if (mk === '以묒떇' || mk === '?⑷퀎') {
+-                                    ditoDetail = `<div style="display:flex;gap:10px;margin-top:6px;flex-wrap:wrap">
++                                let ditoDetail = `<div style="display:flex;gap:10px;margin-top:6px;flex-wrap:wrap">
+                                         <div style="padding:5px 8px;background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.2);border-radius:6px;font-size:10px">?뵷 ?쇰컲??D/I): <strong style="color:#38bdf8">~${estDI.toLocaleString()}紐?/strong></div>
+                                         <div style="padding:5px 8px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);border-radius:6px;font-size:10px">?윝 T/O: <strong style="color:#fbbf24">~${estTO.toLocaleString()}紐?/strong></div>
+                                     </div>`;
+-                                }
+                                 infoEl.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:12px;font-weight:900">?뱟 ${fr.ds} (${dayOfWeek}?붿씪) ${badge} <span style="background:rgba(244,63,94,.12);color:#f43f5e;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:800;margin-left:3px">AI?덉륫</span></div><button onclick="this.parentNode.parentNode.remove()" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:14px">??/button></div><div style="font-size:12px;font-weight:800;color:var(--accent3);margin-top:4px">異붿젙 ${mk}: ${fr.fv.toLocaleString()}紐?/div>${ditoDetail}`;
+                             } catch (err) { }
+                         }

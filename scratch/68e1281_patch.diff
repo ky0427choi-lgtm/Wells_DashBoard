@@ -1,0 +1,282 @@
+﻿commit 68e128196cbf51263ed479852cfddd6623b44809
+Author: JARVIS Developer <jarvis@ainpapa.com>
+Date:   Sat May 16 17:49:41 2026 +0900
+
+    feat: Implement Pre-calculated Trend Summary for instant dashboard loading
+
+diff --git a/backend/02_Router.gs b/backend/02_Router.gs
+index 72fad3f..c08c0e8 100644
+--- a/backend/02_Router.gs
++++ b/backend/02_Router.gs
+@@ -38,6 +38,10 @@ function doGet(e){
+   if(e.parameter.type==="trendBaseline"){
+     var uid3=chkToken(e.parameter.tk); if(!uid3)return jOut({error:"auth_expired"}); return jOut(fetchTrendBaseline(uid3));
+   }
++  /* ??v4.5: ?ъ쟾 怨꾩궛??異붿씠 ?붿빟 ?듦퀎 議고쉶 異붽? */
++  if(e.parameter.type==="trendSummary"){
++    var uid3s=chkToken(e.parameter.tk); if(!uid3s)return jOut({error:"auth_expired"}); return jOut(fetchTrendSummary(uid3s));
++  }
+   if(e.parameter.tk){
+     var uid4=chkToken(e.parameter.tk); if(!uid4)return jOut({error:"auth_expired"}); return jOut(fetchDataFiltered(uid4));
+   }
+@@ -99,6 +103,8 @@ function doPost(e){
+     }
+     if(!updated) sh.appendRow(row);
+     try{ updateMonthlyIndicators(sn, rg, dt); }catch(me){}
++    /* ??v4.5: ?낅젰 ??1???곗궛 援ъ“ ??異붿씠 遺꾩꽍 ?붿빟 利됱떆 媛깆떊 */
++    try{ updateTrendStatsSummary(sn, rg); }catch(te){}
+     /* ??v4.2: ?ㅼ륫諛섏쁺留??좎? (batch write), ?덉륫 ?ъ깮?깆? ?쒓굅
+        ?댁쑀: 異붿젙媛?蹂?숉룺???ъ? ?딆쑝誘濡?留???λ쭏???ъ깮??遺덊븘??        ?꾩＜ ?ㅼ쟻???붿슂???쇨큵 ?낅젰?섎뒗 ?댁쁺 援ъ“?먯꽌???대씪?댁뼵??WMA 1??異붿젙?쇰줈 異⑸텇
+diff --git a/backend/09_TrendService.gs b/backend/09_TrendService.gs
+index e8fe346..e3c83c8 100644
+--- a/backend/09_TrendService.gs
++++ b/backend/09_TrendService.gs
+@@ -4,7 +4,9 @@
+    ============================================ */
+ 
+ var TREND_RESULT_SHEET = "異붿씠遺꾩꽍寃곌낵";
++var TREND_SUMMARY_SHEET = "異붿씠遺꾩꽍?듦퀎";
+ var TREND_HEADERS = ["?좎쭨", "吏??, "?ъ뾽?λ챸", "?쇰땲", "?덉륫媛?, "?ㅼ젣媛?, "?뺥솗??, "鍮꾧퀬"];
++var SUMMARY_HEADERS = ["?ъ뾽?λ챸", "?쇰땲", "?됱씪?됯퇏", "?됱씪DI", "?됱씪TO", "理쒖??쇳룊洹?, "理쒖??퍭I", "理쒖??퍿O", "蹂?숉룺", "理쒓렐異붿씠", "吏??, "理쒖쥌媛깆떊"];
+ 
+ /**
+  * 異붿씠 遺꾩꽍 ?듯빀 濡쒖슦 ?곗씠?곕? 議고쉶?⑸땲??
+@@ -80,3 +82,135 @@ function updateTrendBaselineData(rows) {
+   }
+   return "Error: No data provided.";
+ }
++
++/**
++ * ?뱀젙 ?ъ뾽?μ쓽 異붿씠 ?붿빟 ?듦퀎瑜??ㅼ떆媛??곗궛?섏뿬 ??ν빀?덈떎.
++ * (02_Router.gs ??????몄텧??
++ */
++function updateTrendStatsSummary(siteName, region) {
++  if (!siteName) return;
++  var ss = SpreadsheetApp.getActiveSpreadsheet();
++  var ps = ss.getSheetByName("?ㅼ쟻?곗씠??);
++  if (!ps) return;
++  
++  var data = ps.getDataRange().getValues();
++  var header = data[0];
++  var siteIdx = header.indexOf("?ъ뾽?λ챸");
++  var dateIdx = header.indexOf("?좎쭨");
++  
++  // ?대떦 ?ъ뾽???곗씠?곕쭔 ?꾪꽣留?(理쒓렐 90?쇱튂 ?뺣룄濡??쒗븳?섏뿬 ?곗궛 ?띾룄 ?뺣낫)
++  var threeMonthsAgo = new Date();
++  threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
++  var siteRows = data.filter(function(r, i) {
++    if (i === 0) return false;
++    return String(r[siteIdx]).trim() === siteName && new Date(r[dateIdx]) >= threeMonthsAgo;
++  });
++  
++  if (siteRows.length === 0) return;
++
++  var meals = ["議곗떇", "以묒떇", "?앹떇", "?쇱떇"];
++  var results = [];
++  
++  meals.forEach(function(m) {
++    var diIdx = header.indexOf("DI_" + m);
++    var toIdx = header.indexOf("TO_" + m);
++    
++    // ?됱씪/理쒖???二쇰쭚 遺꾨쪟 濡쒖쭅 (?꾨줎?몄뿏?쒖? ?숈씪?섍쾶 ?댁떇)
++    var wdVals = [], lowVals = [], allWdVals = [];
++    
++    siteRows.forEach(function(r) {
++      var dStr = normDateStr(r[dateIdx]);
++      var dow = new Date(r[dateIdx]).getDay();
++      var isWd = (dow >= 1 && dow <= 5); // 媛꾨떒 ?됱씪 ?먯젙 (怨듯쑕?쇱? ?앸왂)
++      var di = num(r[diIdx]), to = num(r[toIdx]), tot = di + to;
++      
++      if (isWd && tot > 0) {
++        allWdVals.push({di: di, to: to, tot: tot});
++      }
++    });
++    
++    if (allWdVals.length === 0) return;
++    
++    var avgTot = allWdVals.reduce(function(a, b){ return a + b.tot; }, 0) / allWdVals.length;
++    var normalWd = allWdVals.filter(function(x){ return x.tot >= avgTot * 0.65; });
++    var lowWd = allWdVals.filter(function(x){ return x.tot > 0 && x.tot < avgTot * 0.65; });
++    
++    var nAvg = normalWd.length ? Math.round(normalWd.reduce(function(a,b){return a+b.tot;},0)/normalWd.length) : 0;
++    var nDI = normalWd.length ? Math.round(normalWd.reduce(function(a,b){return a+b.di;},0)/normalWd.length) : 0;
++    var nTO = normalWd.length ? Math.round(normalWd.reduce(function(a,b){return a+b.to;},0)/normalWd.length) : 0;
++    
++    var lAvg = lowWd.length ? Math.round(lowWd.reduce(function(a,b){return a+b.tot;},0)/lowWd.length) : 0;
++    var lDI = lowWd.length ? Math.round(lowWd.reduce(function(a,b){return a+b.di;},0)/lowWd.length) : 0;
++    var lTO = lowWd.length ? Math.round(lowWd.reduce(function(a,b){return a+b.to;},0)/lowWd.length) : 0;
++    
++    var drop = nAvg > 0 ? Math.round((1 - lAvg/nAvg)*100) : 0;
++    
++    // 理쒓렐 7??異붿씠 (?됱씪 湲곗?)
++    var recent7 = normalWd.slice(-7);
++    var r7Avg = recent7.length ? Math.round(recent7.reduce(function(a,b){return a+b.tot;},0)/recent7.length) : nAvg;
++    var trend = nAvg > 0 ? ((r7Avg - nAvg)/nAvg*100).toFixed(1) : 0;
++    
++    results.push([siteName, m, nAvg, nDI, nTO, lAvg, lDI, lTO, drop, trend, region, new Date()]);
++  });
++  
++  // ?⑷퀎 濡쒖쭅 異붽?
++  var totalNormal = results.reduce(function(a,b){ return a + num(b[2]); }, 0);
++  if (totalNormal > 0) {
++    var nAvgSum = results.reduce(function(a,b){return a+num(b[2]);},0);
++    var nDISum = results.reduce(function(a,b){return a+num(b[3]);},0);
++    var nTOSum = results.reduce(function(a,b){return a+num(b[4]);},0);
++    var lAvgSum = results.reduce(function(a,b){return a+num(b[5]);},0);
++    var lDISum = results.reduce(function(a,b){return a+num(b[6]);},0);
++    var lTOSum = results.reduce(function(a,b){return a+num(b[7]);},0);
++    var dropSum = nAvgSum > 0 ? Math.round((1 - lAvgSum/nAvgSum)*100) : 0;
++    var trendSum = results.reduce(function(a,b){return a+num(b[9]);},0) / results.length; // ?⑥닚 ?됯퇏
++    results.push([siteName, "?⑷퀎", nAvgSum, nDISum, nTOSum, lAvgSum, lDISum, lTOSum, dropSum, trendSum.toFixed(1), region, new Date()]);
++  }
++
++  // ?붿빟 ?쒗듃???곌린
++  var sh = ss.getSheetByName(TREND_SUMMARY_SHEET);
++  if (!sh) {
++    sh = ss.insertSheet(TREND_SUMMARY_SHEET);
++    sh.appendRow(SUMMARY_HEADERS);
++    sh.setFrozenRows(1);
++  }
++  
++  var sData = sh.getDataRange().getValues();
++  results.forEach(function(resRow) {
++    var foundIdx = -1;
++    for (var i = 1; i < sData.length; i++) {
++      if (sData[i][0] === siteName && sData[i][1] === resRow[1]) {
++        foundIdx = i + 1; break;
++      }
++    }
++    if (foundIdx > 0) {
++      sh.getRange(foundIdx, 1, 1, resRow.length).setValues([resRow]);
++    } else {
++      sh.appendRow(resRow);
++    }
++  });
++}
++
++/**
++ * ??λ맂 ?붿빟 ?듦퀎瑜?議고쉶?⑸땲??
++ */
++function fetchTrendSummary(uid) {
++  var auth = getUserAuth(uid);
++  var ss = SpreadsheetApp.getActiveSpreadsheet();
++  var sh = ss.getSheetByName(TREND_SUMMARY_SHEET);
++  if (!sh || sh.getLastRow() < 2) return { summary: [] };
++  
++  var data = sh.getRange(2, 1, sh.getLastRow() - 1, SUMMARY_HEADERS.length).getValues();
++  var result = data.filter(function(r) {
++    return filterAuthRow_(auth, r[10], r[0]);
++  }).map(function(r) {
++    return {
++      siteName: r[0], meal: r[1],
++      normAvg: r[2], normDI: r[3], normTO: r[4],
++      lowAvg: r[5], lowDI: r[6], lowTO: r[7],
++      dropPct: r[8], trendPct: r[9], region: r[10], updatedAt: r[11]
++    };
++  });
++  
++  return { summary: result };
++}
+diff --git a/frontend/assets/js/08-trend-report.js b/frontend/assets/js/08-trend-report.js
+index a3a7199..a57e730 100644
+--- a/frontend/assets/js/08-trend-report.js
++++ b/frontend/assets/js/08-trend-report.js
+@@ -227,6 +227,7 @@ function isLowSeason(dateStr, normalAvg) {
+ 
+ window._trendSiteFilter = window._trendSiteFilter || [];
+ window._mergedTrendCache = null; // 蹂묓빀 ?곗씠??罹먯떆
++window._trendSummaryCache = null; // ?붿빟 ?듦퀎 罹먯떆 (v4.5)
+ 
+ /**
+  * ??v4.3: 踰좎씠?ㅻ씪??怨쇨굅遺? + ?ㅼ떆媛?罹먯떆(理쒖떊遺? ?곗씠?곕? 蹂묓빀?⑸땲??
+@@ -275,12 +276,37 @@ function getMergedTrendData() {
+     return window._mergedTrendCache;
+ }
+ 
++/**
++ * ??v4.5: ?ъ쟾 怨꾩궛???붿빟 ?듦퀎瑜?遺덈윭?듬땲??
++ */
++function loadTrendSummary() {
++    if (window._trendSummaryLoading) return;
++    window._trendSummaryLoading = true;
++    
++    fetch(`${API_URL}?type=trendSummary&tk=${_tk}`)
++        .then(res => res.json())
++        .then(data => {
++            if (data && data.summary) {
++                window._trendSummaryCache = data.summary;
++                console.log("?뱢 Trend Summary Loaded (Pre-calculated)");
++                // ?붿빟 濡쒕뱶 ??由ы룷??利됱떆 媛깆떊 (?대? 濡쒕뱶???곹깭硫?臾댁떆)
++                if (_trendActiveTab === 'trend' || _trendActiveTab === 'report') {
++                    renderTrendReport();
++                }
++            }
++        })
++        .finally(() => { window._trendSummaryLoading = false; });
++}
++
+ function renderTrendReport() {
+     const body = document.getElementById("trend-body");
+     
+-    // 1. 踰좎씠?ㅻ씪??濡쒕뱶 ?쒕룄 (?꾩쭅 濡쒕뱶?섏? ?딆븯怨?濡쒕뵫 以묐룄 ?꾨땺 ?뚮쭔)
++    // 1. ?붿빟 ?듦퀎 諛?踰좎씠?ㅻ씪??濡쒕뱶 ?쒕룄
++    if (!window._trendSummaryCache && !window._trendSummaryLoading) {
++        loadTrendSummary();
++    }
+     if (!window._gasTrendBaselineLoaded && !window._gasTrendBaselineLoading) {
+-        loadTrendBaselineFromGAS(); // 鍮꾨룞湲곕줈 ?몄텧留??섍퀬 ?섏뼱媛?+        loadTrendBaselineFromGAS(); 
+     }
+ 
+     // 2. 濡쒕뵫 以묒씠硫??ㅽ뵾???쒖떆 ??利됱떆 醫낅즺 (臾댄븳 猷⑦봽 諛⑹?)
+@@ -442,6 +468,12 @@ function renderTabTrend(body) {
+         normAvg, lowAvg, dropPct, mk, mkColor, getMkVal, normVals, regionLabel, selectedSites } = window._trCtx;
+     const sfilt = window._trendSiteFilter || [];
+ 
++    /* ??v4.5: ?ъ쟾 怨꾩궛???붿빟 ?곗씠??留ㅽ븨 */
++    let sInfo = null;
++    if (window._trendSummaryCache && selectedSites.length === 1) {
++        sInfo = window._trendSummaryCache.find(s => s.siteName === selectedSites[0] && s.meal === mk);
++    }
++
+     // DI / TO 遺꾨━ (紐⑤뱺 ?쇰땲 ???
+     const diByDate = {}, toByDate = {};
+     const MEALS_ALL = ['議곗떇', '以묒떇', '?앹떇', '?쇱떇'];
+@@ -456,10 +488,23 @@ function renderTabTrend(body) {
+             toByDate[r.date] = (toByDate[r.date] || 0) + n(r['TO_' + mk]);
+         }
+     });
+-    const totalDI = Object.values(diByDate).reduce((a, b) => a + b, 0);
+-    const totalTO = Object.values(toByDate).reduce((a, b) => a + b, 0);
+-    const sumDITO = totalDI + totalTO || 1;
+-    const diPct = Math.round(totalDI / sumDITO * 100), toPct = 100 - diPct;
++
++    /* ??v4.5: ?붿빟 ?곗씠?곌? ?덉쑝硫??대떦 媛??ъ슜, ?놁쑝硫??ㅼ떆媛??곗궛 寃곌낵 ?ъ슜 */
++    const normTotal = sInfo ? sInfo.normAvg : (Object.values(diByDate).reduce((a, b) => a + b, 0) / (dates.length || 1));
++    const normAvgDI = sInfo ? sInfo.normDI : 0;
++    const normAvgTO = sInfo ? sInfo.normTO : 0;
++    const normDiPct = sInfo ? Math.round(sInfo.normDI / (sInfo.normAvg || 1) * 100) : 0;
++    const normToPct = 100 - normDiPct;
++
++    const lowTotal = sInfo ? sInfo.lowAvg : 0;
++    const lowAvgDI = sInfo ? sInfo.lowDI : 0;
++    const lowAvgTO = sInfo ? sInfo.lowTO : 0;
++    const lowDiPct = sInfo ? Math.round(sInfo.lowDI / (sInfo.lowAvg || 1) * 100) : 0;
++    const lowToPct = 100 - lowDiPct;
++
++    const finalDropPct = sInfo ? sInfo.dropPct : dropPct;
++    const finalTrendPct = sInfo ? sInfo.trendPct : ((normAvg > 0 ? (( (Object.values(diByDate).slice(-7).reduce((a,b)=>a+b,0) / 7) - normAvg) / normAvg * 100).toFixed(1) : 0));
++    const r7avg = sInfo ? Math.round(sInfo.normAvg * (1 + sInfo.trendPct/100)) : 0;
+ 
+     // ?됱씪/二쇰쭚/理쒖????됯퇏 ?곗씠??遺꾨━ (DI/TO ?ы븿)
+     const normalValsDI = normalDates.map(d => diByDate[d] || 0);
+@@ -581,8 +626,8 @@ function renderTabTrend(body) {
+     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-bottom:14px">
+         <div class="kpi-v2 accent"><div class="kv2-lbl" style="white-space:nowrap">?됱씪 ?됯퇏 (?뺤긽)</div><div class="kv2-val" style="color:${mkColor}">${normTotal.toLocaleString()}<span style="font-size:11px;opacity:.7"> ??/span></div><div class="kv2-sub">D/I ${normAvgDI.toLocaleString()}(${normDiPct}%) 쨌 T/O ${normAvgTO.toLocaleString()}(${normToPct}%)</div></div>
+         <div class="kpi-v2 warning"><div class="kv2-lbl" style="white-space:nowrap">理쒖????됯퇏 (?뱀씠)</div><div class="kv2-val" style="color:#fbbf24">${lowTotal > 0 ? lowTotal.toLocaleString() : '-'}<span style="font-size:11px;opacity:.7"> ??/span></div><div class="kv2-sub">${lowTotal > 0 ? `D/I ${lowAvgDI.toLocaleString()}(${lowDiPct}%) 쨌 T/O ${lowAvgTO.toLocaleString()}(${lowToPct}%)` : '媛먯????곗씠???놁쓬'}</div></div>
+-        <div class="kpi-v2 danger"><div class="kv2-lbl" style="white-space:nowrap">?앹닔 蹂?숉룺</div><div class="kv2-val" style="color:#f87171">??{dropPct}<span style="font-size:14px;opacity:.7">%</span></div><div class="kv2-sub">?뺤긽 ?됱씪 ?鍮??섎씫瑜?/div></div>
+-        <div class="kpi-v2 ${trendPct > 0 ? 'success' : trendPct < 0 ? 'danger' : 'warning'}"><div class="kv2-lbl" style="white-space:nowrap">理쒓렐 7??異붿씠 (?됱씪湲곗?)</div><div class="kv2-val" style="color:${trendCls}">${r7avg.toLocaleString()}<span style="font-size:11px;opacity:.7"> ??/span></div><div class="kv2-sub">${trendPct > 0 ? '?? : '??} ${Math.abs(trendPct)}% vs 湲곌컙?됯퇏</div></div>
++        <div class="kpi-v2 danger"><div class="kv2-lbl" style="white-space:nowrap">?앹닔 蹂?숉룺</div><div class="kv2-val" style="color:#f87171">??{finalDropPct}<span style="font-size:14px;opacity:.7">%</span></div><div class="kv2-sub">?뺤긽 ?됱씪 ?鍮??섎씫瑜?/div></div>
++        <div class="kpi-v2 ${finalTrendPct > 0 ? 'success' : finalTrendPct < 0 ? 'danger' : 'warning'}"><div class="kv2-lbl" style="white-space:nowrap">理쒓렐 7??異붿씠 (?됱씪湲곗?)</div><div class="kv2-val" style="color:${finalTrendPct > 0 ? '#34d399' : finalTrendPct < 0 ? '#f87171' : '#fbbf24'}">${r7avg.toLocaleString()}<span style="font-size:11px;opacity:.7"> ??/span></div><div class="kv2-sub">${finalTrendPct > 0 ? '?? : '??} ${Math.abs(finalTrendPct)}% vs 湲곌컙?됯퇏</div></div>
+     </div>
+     <!-- ?앹닔 蹂?숉룺(理쒖??? 遺꾩꽍 ?⑤꼸 -->
+     <div class="ch-panel" style="margin-bottom:14px;padding:14px 16px">
