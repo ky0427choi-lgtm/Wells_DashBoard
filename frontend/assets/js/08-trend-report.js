@@ -822,7 +822,7 @@ function renderTabTrend(body) {
                                                         <button onclick="document.getElementById('chartTrendClickInfo').style.display='none'" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:14px">✕</button>
                                                     </div>
                                                     <div style="font-size:12px;font-weight:800;color:${mkColor}">
-                                                        ${mk} 식수: ${isForecast ? (foreVal ? foreVal.fv.toLocaleString() : '-') : totalVal.toLocaleString()}명
+                                                        ${mk} 식수: ${isForecast ? (foreVal ? foreVal.fv.toLocaleString() : '-') : totalVal.toLocaleString()}식
                                                     </div>
                                                     ${ditoHtml}${deviationNote}${envHtml}${wmaNote}
                                                 `;
@@ -846,7 +846,7 @@ function renderTabTrend(body) {
                                         }
                                     }
                                 },
-                                yaxis: { ...APEX_BASE.yaxis, min: 0, title: { text: '식수(명)', style: { color: '#64748b', fontSize: '10px' } }, labels: { ...APEX_BASE.yaxis.labels, formatter: v => v.toLocaleString() } },
+                                yaxis: { ...APEX_BASE.yaxis, min: 0, title: { text: '식수(식)', style: { color: '#64748b', fontSize: '10px' } }, labels: { ...APEX_BASE.yaxis.labels, formatter: v => v.toLocaleString() } },
                                 annotations: {
                                     xaxis: [{
                                         x: chartDates[chartDates.length - 1].slice(5) + (
@@ -860,7 +860,7 @@ function renderTabTrend(body) {
                                     yaxis: [{ y: normAvg, borderColor: mkColor + 'cc', strokeDashArray: 0, label: { text: `정상평균 ${normAvg}`, position: 'right', textAnchor: 'end', orientation: 'horizontal', style: { background: mkColor, color: '#fff', fontSize: '10px', fontWeight: 900 } } },
                                     ...(lowAvg > 0 ? [{ y: lowAvg, borderColor: '#fbbf24cc', strokeDashArray: 0, label: { text: `저조평균 ${lowAvg}`, position: 'right', textAnchor: 'end', orientation: 'horizontal', style: { background: '#fbbf24', color: '#000', fontSize: '10px', fontWeight: 900 } } }] : [])]
                                 },
-                                tooltip: { ...APEX_BASE.tooltip, y: { formatter: v => v != null ? v.toLocaleString() + '명' : '-' } },
+                                tooltip: { ...APEX_BASE.tooltip, y: { formatter: v => v != null ? v.toLocaleString() + '식' : '-' } },
                                 legend: { show: false },
                             });
                             c1.render(); window._apexCharts.push(c1);
@@ -877,7 +877,7 @@ function renderTabTrend(body) {
                                 xaxis: { ...APEX_BASE.xaxis, categories: d14.map(d => { const ht = getHolidayType(d).type; return d.slice(5) + (ht !== 'workday' ? '\n' + (ht === 'weekend' ? '🟡' : '🔴') : ''); }) },
                                 yaxis: { ...APEX_BASE.yaxis, min: 0, labels: { ...APEX_BASE.yaxis.labels, formatter: v => v.toLocaleString() } },
                                 dataLabels: { enabled: true, style: { fontSize: '10px', fontWeight: 700 }, formatter: (v, opts) => { const total = opts.w.globals.stackedSeriesTotals[opts.dataPointIndex] || 1; return (v / total >= 0.12 && v > 0) ? v.toLocaleString() : ''; } },
-                                tooltip: { ...APEX_BASE.tooltip, y: { formatter: v => v.toLocaleString() + '명' } },
+                                tooltip: { ...APEX_BASE.tooltip, y: { formatter: v => v.toLocaleString() + '식' } },
                                 legend: { ...APEX_BASE.legend, position: 'top' },
                             });
                             c2.render(); window._apexCharts.push(c2);
@@ -956,7 +956,7 @@ function renderTabDaily(body) {
                 yaxis: { ...APEX_BASE.yaxis, min: Math.max(0, Math.floor(Math.min(...wdData.filter(v => v > 0)) * 0.95)) },
                 annotations: { yaxis: [{ y: wdAvgLine, borderColor: mkColor + '66', strokeDashArray: 3, label: { text: `평균 ${wdAvgLine}`, style: { background: mkColor + '14', color: mkColor, fontSize: '9px' } } }] },
                 legend: { show: false },
-                tooltip: { ...APEX_BASE.tooltip, y: { formatter: v => v.toLocaleString() + '명' } },
+                tooltip: { ...APEX_BASE.tooltip, y: { formatter: v => v.toLocaleString() + '식' } },
             }); c3.render(); window._apexCharts.push(c3);
         } catch (e) { }
         try {
@@ -971,7 +971,7 @@ function renderTabDaily(body) {
                 yaxis: { ...APEX_BASE.yaxis, min: 0, max: Math.max(...weData, 1) * 1.5 },
                 annotations: { yaxis: [{ y: wdAvgLine, borderColor: mkColor + '55', strokeDashArray: 4, label: { text: '평일평균', style: { background: mkColor + '14', color: mkColor, fontSize: '9px' } } }] },
                 legend: { show: false },
-                tooltip: { ...APEX_BASE.tooltip, y: { formatter: v => v.toLocaleString() + '명 (주말)' } },
+                tooltip: { ...APEX_BASE.tooltip, y: { formatter: v => v.toLocaleString() + '식 (주말)' } },
             }); c4.render(); window._apexCharts.push(c4);
         } catch (e) { }
         try {
@@ -984,7 +984,7 @@ function renderTabDaily(body) {
                 xaxis: { categories: DAYS },
                 yaxis: { show: false },
                 legend: { ...APEX_BASE.legend, position: 'top' },
-                tooltip: { ...APEX_BASE.tooltip, y: { formatter: v => v.toLocaleString() + '명' } },
+                tooltip: { ...APEX_BASE.tooltip, y: { formatter: v => v.toLocaleString() + '식' } },
             }); c5.render(); window._apexCharts.push(c5);
         } catch (e) { }
     }, 100);
@@ -1108,12 +1108,12 @@ function renderTabSites(body) {
                 series: [{ name: '평일 평균', data: siteData.map(d => d.wdA) }],
                 colors: siteData.map(d => d.wdA >= overallAvg ? '#34d399' : '#f87171'),
                 plotOptions: { bar: { borderRadius: 6, horizontal: true, distributed: true, dataLabels: { position: 'right' } } },
-                dataLabels: { enabled: true, formatter: v => v.toLocaleString() + '명', style: { fontSize: '10px', colors: ['#e2e8f0'] }, offsetX: 8 },
-                xaxis: { ...APEX_BASE.xaxis, min: 0 },
-                yaxis: { ...APEX_BASE.yaxis, labels: { style: { colors: siteData.map(d => d.color), fontSize: '11px', fontWeight: 700 } }, categories: siteData.map(d => d.site) },
+                dataLabels: { enabled: true, formatter: v => v.toLocaleString() + '식', style: { fontSize: '10px', colors: ['#e2e8f0'] }, offsetX: 8 },
+                xaxis: { ...APEX_BASE.xaxis, categories: siteData.map(d => d.site), min: 0 },
+                yaxis: { ...APEX_BASE.yaxis, labels: { style: { colors: siteData.map(d => d.color), fontSize: '11px', fontWeight: 700 } } },
                 annotations: { xaxis: [{ x: overallAvg, borderColor: '#38bdf866', strokeDashArray: 4, label: { text: `전체평균 ${overallAvg}`, position: 'top', textAnchor: 'middle', orientation: 'horizontal', style: { background: '#38bdf8', color: '#fff', fontSize: '10px', fontWeight: 900 } } }] },
                 legend: { show: false },
-                tooltip: { ...APEX_BASE.tooltip, y: { formatter: v => v.toLocaleString() + '명' } },
+                tooltip: { ...APEX_BASE.tooltip, y: { formatter: v => v.toLocaleString() + '식' } },
             }); c6.render(); window._apexCharts.push(c6);
         } catch (e) { }
         const rd21 = dates.slice(-21);
@@ -1129,7 +1129,7 @@ function renderTabSites(body) {
                 yaxis: { ...APEX_BASE.yaxis, min: 0 },
                 dataLabels: { enabled: false },
                 legend: { ...APEX_BASE.legend, position: 'top' },
-                tooltip: { ...APEX_BASE.tooltip, y: { formatter: v => v != null ? v.toLocaleString() + '명' : '-' } },
+                tooltip: { ...APEX_BASE.tooltip, y: { formatter: v => v != null ? v.toLocaleString() + '식' : '-' } },
             }); c7.render(); window._apexCharts.push(c7);
         } catch (e) { }
     }, 100);
@@ -1219,7 +1219,7 @@ function renderTabReport(body) {
         const toRatio = 1 - diRatio;
         const estDI = Math.round(fv * diRatio);
         const estTO = Math.round(fv * toRatio);
-        const ditoInfo = `<br><span style="font-size:9px;color:var(--dim)">일반식 ~${estDI.toLocaleString()} / T/O ~${estTO.toLocaleString()}</span>`;
+        const ditoInfo = `<br><span style="font-size:9px;color:var(--dim)">일반식 ~${estDI.toLocaleString()}식 / T/O ~${estTO.toLocaleString()}식</span>`;
         return `<tr${isOff ? ' style="opacity:.6"' : ''}><td>${ds.slice(5)}</td><td>${badge}</td><td style="color:var(--accent3);font-weight:900">${fv.toLocaleString()}식${ditoInfo}</td><td style="color:${cc};font-weight:800">${chg > 0 ? '+' : ''}${chg}%</td></tr>`;
     }).join('')}</tbody>
         </table></div>
@@ -1273,7 +1273,7 @@ function renderTabReport(body) {
                 xaxis: { ...APEX_BASE.xaxis, categories: rptDates7.map(d => { const ht = getHolidayType(d).type; return d.slice(5) + (ht !== 'workday' ? '\n' + (ht === 'weekend' ? '🟡' : '🔴') : ''); }) },
                 yaxis: { ...APEX_BASE.yaxis, min: 0, labels: { ...APEX_BASE.yaxis.labels, formatter: v => v.toLocaleString() } },
                 dataLabels: { enabled: true, style: { fontSize: '10px', fontWeight: 700 }, formatter: (v, opts) => { const total = opts.w.globals.stackedSeriesTotals[opts.dataPointIndex] || 1; return (v / total >= 0.12 && v > 0) ? v.toLocaleString() : ''; } },
-                tooltip: { ...APEX_BASE.tooltip, y: { formatter: v => v.toLocaleString() + '명' } },
+                tooltip: { ...APEX_BASE.tooltip, y: { formatter: v => v.toLocaleString() + '식' } },
                 legend: { ...APEX_BASE.legend, position: 'top' },
             }); cDITO.render(); window._apexCharts.push(cDITO);
         } catch (e) { }
@@ -1289,7 +1289,7 @@ function renderTabReport(body) {
                 dataLabels: { enabled: false },
                 legend: { show: false },
                 stroke: { width: 2, colors: ['#0a0f1e'] },
-                tooltip: { theme: 'dark', y: { formatter: v => v.toLocaleString() + '명' } },
+                tooltip: { theme: 'dark', y: { formatter: v => v.toLocaleString() + '식' } },
             }); cDonut.render(); window._apexCharts.push(cDonut);
         } catch (e) { }
 
@@ -1321,10 +1321,10 @@ function renderTabReport(body) {
                                 }
                                 const badge = fr.isOff ? `<span style="background:rgba(248,113,113,.12);color:#f87171;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:800">${fr.ht.label || '휴일'}</span>` : `<span style="background:rgba(56,189,248,.1);color:#38bdf8;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:800">평일</span>`;
                                 ditoDetail = `<div style="display:flex;gap:10px;margin-top:6px;flex-wrap:wrap">
-                                    <div style="padding:5px 8px;background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.2);border-radius:6px;font-size:10px">🔵 일반식(D/I): <strong style="color:#38bdf8">~${estDI.toLocaleString()}명</strong></div>
-                                    <div style="padding:5px 8px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);border-radius:6px;font-size:10px">🟠 T/O: <strong style="color:#fbbf24">~${estTO.toLocaleString()}명</strong></div>
+                                    <div style="padding:5px 8px;background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.2);border-radius:6px;font-size:10px">🔵 일반식(D/I): <strong style="color:#38bdf8">~${estDI.toLocaleString()}식</strong></div>
+                                    <div style="padding:5px 8px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);border-radius:6px;font-size:10px">🟠 T/O: <strong style="color:#fbbf24">~${estTO.toLocaleString()}식</strong></div>
                                 </div>`;
-                                infoEl.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:12px;font-weight:900">📅 ${fr.ds} (${dayOfWeek}요일) ${badge} <span style="background:rgba(244,63,94,.12);color:#f43f5e;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:800;margin-left:3px">AI예측</span></div><button onclick="this.parentNode.parentNode.remove()" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:14px">✕</button></div><div style="font-size:12px;font-weight:800;color:var(--accent3);margin-top:4px">추정 ${mk}: ${fr.fv.toLocaleString()}명</div>${ditoDetail}`;
+                                infoEl.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:12px;font-weight:900">📅 ${fr.ds} (${dayOfWeek}요일) ${badge} <span style="background:rgba(244,63,94,.12);color:#f43f5e;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:800;margin-left:3px">AI예측</span></div><button onclick="this.parentNode.parentNode.remove()" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:14px">✕</button></div><div style="font-size:12px;font-weight:800;color:var(--accent3);margin-top:4px">추정 ${mk}: ${fr.fv.toLocaleString()}식</div>${ditoDetail}`;
                             } catch (err) { }
                         }
                     }
@@ -1332,12 +1332,12 @@ function renderTabReport(body) {
                 series: [{ name: '추정 ' + mk, data: foreRows.map(r => r.fv) }],
                 colors: foreRows.map(r => r.isOff ? '#475569' : '#38bdf8'),
                 plotOptions: { bar: { borderRadius: 6, distributed: true, columnWidth: '55%', dataLabels: { position: 'top' } } },
-                dataLabels: { enabled: true, formatter: v => v.toLocaleString(), style: { fontSize: '9px', colors: ['#e2e8f0'] }, offsetY: -18 },
+                dataLabels: { enabled: window.innerWidth > 768, formatter: v => v.toLocaleString(), style: { fontSize: '9px', colors: ['#e2e8f0'] }, offsetY: -18 },
                 xaxis: { ...APEX_BASE.xaxis, categories: fLabels },
                 yaxis: { ...APEX_BASE.yaxis, min: 0, labels: { ...APEX_BASE.yaxis.labels, formatter: v => v.toLocaleString() } },
                 annotations: { yaxis: [{ y: Math.round(wdAvg), borderColor: '#38bdf8aa', strokeDashArray: 0, label: { text: `평일평균 ${Math.round(wdAvg)}`, position: 'right', textAnchor: 'end', orientation: 'horizontal', style: { background: '#38bdf8', color: '#fff', fontSize: '10px', fontWeight: 900 }, offsetX: -10 } }, ...(weAvg > 0 ? [{ y: Math.round(weAvg), borderColor: '#fbbf24aa', strokeDashArray: 0, label: { text: `주말평균 ${Math.round(weAvg)}`, position: 'right', textAnchor: 'end', orientation: 'horizontal', style: { background: '#fbbf24', color: '#000', fontSize: '10px', fontWeight: 900 }, offsetX: -10 } }] : [])] },
                 legend: { show: false },
-                tooltip: { ...APEX_BASE.tooltip, y: { formatter: v => v.toLocaleString() + '명(추정)' } },
+                tooltip: { ...APEX_BASE.tooltip, y: { formatter: v => v.toLocaleString() + '식 (추정)' } },
             }); c8.render(); window._apexCharts.push(c8);
         } catch (e) { }
     }, 100);

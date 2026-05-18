@@ -430,10 +430,57 @@ td:first-child {
     }
 
     .report-actions {
-        flex-direction: column;
-        padding: 12px 14px;
-        display: flex;
-        gap: 8px;
+        display: grid !important;
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 8px !important;
+        padding: 10px 14px !important;
+    }
+
+    .report-actions .report-btn {
+        height: 38px !important;
+        font-size: 11px !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        border-radius: 10px !important;
+    }
+
+    /* Trend Modal Mobile Optimization */
+    .trend-modal #trend-tab-nav {
+        scrollbar-width: none !important;
+    }
+    .trend-modal #trend-tab-nav::-webkit-scrollbar {
+        display: none !important;
+    }
+    .trend-modal .tr-tab {
+        font-size: 11px !important;
+        padding: 8px 10px !important;
+    }
+    .trend-modal .trend-body .kpi-v2 {
+        min-height: auto !important;
+        padding: 10px 6px !important;
+        border-radius: 12px !important;
+        background: rgba(255, 255, 255, .03) !important;
+    }
+    .trend-modal .trend-body .kpi-v2 .kv2-lbl {
+        font-size: 9px !important;
+        margin-bottom: 4px !important;
+        font-weight: 700 !important;
+    }
+    .trend-modal .trend-body .kpi-v2 .kv2-val {
+        font-size: 15px !important;
+        font-weight: 900 !important;
+    }
+    .trend-modal .trend-body .kpi-v2 .kv2-sub {
+        font-size: 9px !important;
+        margin-top: 2px !important;
+    }
+    .trend-modal .trend-body div[style*="flex-wrap:wrap"] {
+        display: grid !important;
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 8px !important;
+    }
+    .trend-modal .trend-body div[style*="flex-wrap:wrap"] > .kpi-v2:nth-child(3) {
+        grid-column: span 2 !important;
     }
 
     /* KPI Grid 2x2 alignment & Pen size */
