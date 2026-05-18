@@ -1,12 +1,24 @@
 /* =====================================================
    04-dashboard-render.js — 대시보드 메인 렌더링 로직 (UI 100% 복원)
 ===================================================== */
+function _normalizeRegions(arr) {
+    if (!Array.isArray(arr)) return arr;
+    return arr.map(s => {
+        if (s["사업장명"] === "sdr" || s["사업장명"] === "SDR") {
+            s["지역"] = "기흥지역";
+        } else if (s["사업장명"] === "미캠") {
+            s["지역"] = "화성1지역";
+        }
+        return s;
+    });
+}
+
 async function init() {
     const sp = document.getElementById("splash"), db = document.getElementById("dashboard");
     const cachedData = localStorage.getItem("WS_D_CACHE");
     if (cachedData) {
         try {
-            D = JSON.parse(cachedData);
+            D = _normalizeRegions(JSON.parse(cachedData));
             const now = new Date();
             document.getElementById("lastUpdate").innerText = `${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")} 캐시 로드됨`;
             sp.style.display = "none";
@@ -29,10 +41,10 @@ async function init() {
         if (raw.error) throw new Error(raw.error);
 
         if (raw.data) {
-            D = deobf(raw.data);
+            D = _normalizeRegions(deobf(raw.data));
             if (!USER_ROLE || USER_ROLE === "C") { USER_ROLE = raw.role || "C"; USER_REGION = raw.region || ""; USER_SITE = raw.site || ""; }
         } else {
-            D = deobf(raw || []);
+            D = _normalizeRegions(deobf(raw || []));
         }
         localStorage.setItem("WS_D_CACHE", JSON.stringify(D));
         applyRoleUI();
