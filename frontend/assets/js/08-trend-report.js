@@ -983,10 +983,64 @@ function renderTabTrend(body) {
 
 /* ─────────────── TAB 2: 요일별 분석 ─────────────── */
 function renderTabDaily(body) {
-    const { dates, byDate, mk, mkColor, normalDates, wdDates } = window._trCtx;
+    const { filtRecs, dates, byDate, mk, mkColor, normalDates, wdDates } = window._trCtx;
     const sfilt = window._trendSiteFilter || [];
     const DAYS = ['월', '화', '수', '목', '금', '토', '일'];
     const DOW = { 0: '일', 1: '월', 2: '화', 3: '수', 4: '목', 5: '금', 6: '토' };
+    
+    // 요일별 실제 D/I 및 T/O 수집용 리스트
+    const daySums = {};
+    const dayDICounts = {};
+    const dayTOCounts = {};
+    DAYS.slice(0, 5).forEach(d => {
+        daySums[d] = [];
+        dayDICounts[d] = [];
+        dayTOCounts[d] = [];
+    });
+    
+    const n = v => isNaN(Number(v)) ? 0 : Number(v);
+
+    dates.forEach(d => {
+        const dow = DOW[new Date(d + 'T00:00:00').getDay()];
+        if (DAYS.slice(0, 5).includes(dow)) {
+            let diVal = 0, toVal = 0;
+            const mkKey = mk === '합계' ? '중식' : mk; // 합계인 경우 전체 식수 합산
+            filtRecs.filter(r => r.date === d).forEach(r => {
+                if (mk === '합계') {
+                    ['조식', '중식', '석식', '야식'].forEach(m => {
+                        diVal += n(r['DI_' + m]);
+                        toVal += n(r['TO_' + m]);
+                    });
+                } else {
+                    diVal += n(r['DI_' + mkKey]);
+                    toVal += n(r['TO_' + mkKey]);
+                }
+            });
+            const totalVal = diVal + toVal;
+            if (totalVal > 0) {
+                daySums[dow].push(totalVal);
+                dayDICounts[dow].push(diVal);
+                dayTOCounts[dow].push(toVal);
+            }
+        }
+    });
+
+    const dayAvgTotal = {};
+    const dayAvgDI = {};
+    const dayAvgTO = {};
+    DAYS.slice(0, 5).forEach(d => {
+        const totals = daySums[d];
+        const dis = dayDICounts[d];
+        const tos = dayTOCounts[d];
+        dayAvgTotal[d] = totals.length ? Math.round(totals.reduce((a,b)=>a+b,0)/totals.length) : 0;
+        dayAvgDI[d] = dis.length ? Math.round(dis.reduce((a,b)=>a+b,0)/dis.length) : 0;
+        dayAvgTO[d] = tos.length ? Math.round(tos.reduce((a,b)=>a+b,0)/tos.length) : 0;
+    });
+
+    // wdData는 월~금 평균
+    const wdData = DAYS.slice(0, 5).map(d => dayAvgTotal[d]);
+
+    // 기존 호환성용 dayMap 및 weData 계산
     const dayMap = {}; DAYS.forEach(d => { dayMap[d] = []; });
     dates.forEach(d => {
         const dow = DOW[new Date(d + 'T00:00:00').getDay()];
@@ -994,20 +1048,43 @@ function renderTabDaily(body) {
         if (v > 0) dayMap[dow].push(v);
     });
     const avg = arr => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
-    const wdData = DAYS.slice(0, 5).map(d => avg(dayMap[d]));
     const weData = DAYS.slice(5).map(d => avg(dayMap[d]));
+
     const wdAvgLine = Math.round(wdData.filter(v => v > 0).reduce((a, b) => a + b, 0) / (wdData.filter(v => v > 0).length || 1));
 
     // 끼니별 요일 데이터 (레이더용)
     const radarData = DAYS.map(d => ({ day: d, ...Object.fromEntries(['조식', '중식', '석식'].map(m => [m, avg(dates.filter(d2 => DOW[new Date(d2 + 'T00:00:00').getDay()] === d).map(d2 => byDate[m]?.[d2] || 0).filter(v => v > 0))])) }));
 
+    const maxVal = Math.max(...wdData);
+    const minVal = Math.min(...wdData.filter(v => v > 0));
+    
+    const maxDay = DAYS[wdData.indexOf(maxVal)] || '-';
+    const minDay = DAYS[wdData.indexOf(minVal)] || '-';
+    
+    const maxDI = dayAvgDI[maxDay] || 0;
+    const maxTO = dayAvgTO[maxDay] || 0;
+    const minDI = dayAvgDI[minDay] || 0;
+    const minTO = dayAvgTO[minDay] || 0;
+
     body.innerHTML = `
     <div style="padding:4px 0 16px">
     ${mkFilterHTML(mk, window._trCtx.sites, sfilt)}
-    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
-        <div class="kpi-v2 accent" style="flex:1;min-width:100px"><div class="kv2-lbl">최다 ${mk} 요일</div><div class="kv2-val" style="color:${mkColor}">${DAYS[wdData.indexOf(Math.max(...wdData))] || '-'}요일</div><div class="kv2-sub">${Math.max(...wdData).toLocaleString()}식</div></div>
-        <div class="kpi-v2 warning" style="flex:1;min-width:100px"><div class="kv2-lbl">최저 ${mk} 요일</div><div class="kv2-val" style="color:#fbbf24">${DAYS[wdData.indexOf(Math.min(...wdData.filter(v => v > 0)))] || '-'}요일</div><div class="kv2-sub">${Math.min(...wdData.filter(v => v > 0)).toLocaleString()}식</div></div>
-        <div class="kpi-v2 success" style="flex:1;min-width:100px"><div class="kv2-lbl">요일 최대 편차</div><div class="kv2-val" style="color:#34d399">${(Math.max(...wdData) - Math.min(...wdData.filter(v => v > 0))).toLocaleString()}</div><div class="kv2-sub">최고-최저</div></div>
+    <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 14px;">
+        <div class="kpi-v2 accent" style="padding:8px 4px; text-align:center; border-radius:10px;">
+            <div class="kv2-lbl" style="font-size:10px; font-weight:800; opacity:0.8; margin-bottom:4px; white-space:nowrap;">최대 ${mk} 요일</div>
+            <div class="kv2-val" style="color:${mkColor}; font-size:16px; font-weight:900; margin-bottom:2px;">${maxDay}요일</div>
+            <div class="kv2-sub" style="font-size:8px; color:var(--dim); font-weight:700; white-space:nowrap; letter-spacing:-0.3px;">${maxVal.toLocaleString()}식 / ${maxDI.toLocaleString()} / ${maxTO.toLocaleString()}</div>
+        </div>
+        <div class="kpi-v2 warning" style="padding:8px 4px; text-align:center; border-radius:10px;">
+            <div class="kv2-lbl" style="font-size:10px; font-weight:800; opacity:0.8; margin-bottom:4px; white-space:nowrap;">최저 ${mk} 요일</div>
+            <div class="kv2-val" style="color:#fbbf24; font-size:16px; font-weight:900; margin-bottom:2px;">${minDay}요일</div>
+            <div class="kv2-sub" style="font-size:8px; color:var(--dim); font-weight:700; white-space:nowrap; letter-spacing:-0.3px;">${minVal.toLocaleString()}식 / ${minDI.toLocaleString()} / ${minTO.toLocaleString()}</div>
+        </div>
+        <div class="kpi-v2 success" style="padding:8px 4px; text-align:center; border-radius:10px;">
+            <div class="kv2-lbl" style="font-size:10px; font-weight:800; opacity:0.8; margin-bottom:4px; white-space:nowrap;">요일별 편차</div>
+            <div class="kv2-val" style="color:#34d399; font-size:16px; font-weight:900; margin-bottom:2px;">${(maxVal - minVal).toLocaleString()}식</div>
+            <div class="kv2-sub" style="font-size:8px; color:var(--dim); font-weight:700; white-space:nowrap; letter-spacing:-0.3px;">최대-최저</div>
+        </div>
     </div>
     <div style="display:flex;flex-direction:column;gap:16px;margin-bottom:12px">
         <div class="ch-panel" style="margin:0">
@@ -1038,9 +1115,10 @@ function renderTabDaily(body) {
                 colors: wdData.map(v => v === maxWd ? mkColor : mkColor + '55'),
                 plotOptions: { bar: { borderRadius: 5, distributed: true, columnWidth: '60%', dataLabels: { position: 'top' } } },
                 dataLabels: { enabled: true, formatter: v => v > 0 ? v.toLocaleString() : '', style: { fontSize: '9px', colors: ['#e2e8f0'] }, offsetY: -16 },
-                xaxis: { ...APEX_BASE.xaxis, categories: ['월', '화', '수', '목', '금'] },
+                xaxis: { ...APEX_BASE.xaxis, crosshairs: { show: false }, categories: ['월', '화', '수', '목', '금'] },
                 yaxis: { ...APEX_BASE.yaxis, min: Math.max(0, Math.floor(Math.min(...wdData.filter(v => v > 0)) * 0.95)) },
                 annotations: { yaxis: [{ y: wdAvgLine, borderColor: mkColor + '66', strokeDashArray: 3, label: { text: `평균 ${wdAvgLine}`, style: { background: mkColor + '14', color: mkColor, fontSize: '9px' } } }] },
+                states: { hover: { filter: { type: 'none' } }, active: { filter: { type: 'none' } } },
                 legend: { show: false },
                 tooltip: { ...APEX_BASE.tooltip, y: { formatter: v => v.toLocaleString() + '식' } },
             }); c3.render(); window._apexCharts.push(c3);
@@ -1053,9 +1131,10 @@ function renderTabDaily(body) {
                 colors: ['#334155'],
                 plotOptions: { bar: { borderRadius: 5, distributed: true, columnWidth: '55%' } },
                 dataLabels: { enabled: true, formatter: v => v > 0 ? v.toLocaleString() : '없음', style: { fontSize: '9px', colors: ['#64748b'] } },
-                xaxis: { ...APEX_BASE.xaxis, categories: ['토', '일'] },
+                xaxis: { ...APEX_BASE.xaxis, crosshairs: { show: false }, categories: ['토', '일'] },
                 yaxis: { ...APEX_BASE.yaxis, min: 0, max: Math.max(...weData, 1) * 1.5 },
                 annotations: { yaxis: [{ y: wdAvgLine, borderColor: mkColor + '55', strokeDashArray: 4, label: { text: '평일평균', style: { background: mkColor + '14', color: mkColor, fontSize: '9px' } } }] },
+                states: { hover: { filter: { type: 'none' } }, active: { filter: { type: 'none' } } },
                 legend: { show: false },
                 tooltip: { ...APEX_BASE.tooltip, y: { formatter: v => v.toLocaleString() + '식 (주말)' } },
             }); c4.render(); window._apexCharts.push(c4);
