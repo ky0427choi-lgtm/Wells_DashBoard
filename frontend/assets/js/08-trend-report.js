@@ -953,7 +953,7 @@ function renderTabTrend(body) {
                                 plotOptions: { bar: { borderRadius: 3, columnWidth: '55%' } },
                                 xaxis: { ...APEX_BASE.xaxis, categories: d14.map(d => { const ht = getHolidayType(d).type; return d.slice(5) + (ht !== 'workday' ? '\n' + (ht === 'weekend' ? '🟡' : '🔴') : ''); }) },
                                 yaxis: { ...APEX_BASE.yaxis, min: 0, labels: { ...APEX_BASE.yaxis.labels, formatter: v => v.toLocaleString() } },
-                                dataLabels: { enabled: true, style: { fontSize: '10px', fontWeight: 700 }, formatter: (v, opts) => { const total = opts.w.globals.stackedSeriesTotals[opts.dataPointIndex] || 1; return (v / total >= 0.12 && v > 0) ? v.toLocaleString() : ''; } },
+                                dataLabels: { enabled: false },
                                 tooltip: { ...APEX_BASE.tooltip, y: { formatter: v => v.toLocaleString() + '식' } },
                                 legend: { ...APEX_BASE.legend, position: 'top' },
                             });
@@ -969,6 +969,15 @@ function renderTabTrend(body) {
         if (mk === '중식' || mk === '합계') {
             const t2 = document.getElementById('chartDITO'); if (t2) chartObserver.observe(t2);
         }
+
+        // 핀치-투-줌(Pinch-to-Zoom) 및 좌우 이동 활성화
+        setTimeout(() => {
+            const wrap = document.querySelector('.chart-scroll-wrap');
+            const trendEl = document.getElementById('chartTrend');
+            if (wrap && trendEl && typeof initPinchZoom === 'function') {
+                initPinchZoom(wrap, trendEl);
+            }
+        }, 150);
     }, 100);
 }
 
@@ -1349,7 +1358,7 @@ function renderTabReport(body) {
                 plotOptions: { bar: { borderRadius: 3, columnWidth: '55%' } },
                 xaxis: { ...APEX_BASE.xaxis, categories: rptDates7.map(d => { const ht = getHolidayType(d).type; return d.slice(5) + (ht !== 'workday' ? '\n' + (ht === 'weekend' ? '🟡' : '🔴') : ''); }) },
                 yaxis: { ...APEX_BASE.yaxis, min: 0, labels: { ...APEX_BASE.yaxis.labels, formatter: v => v.toLocaleString() } },
-                dataLabels: { enabled: true, style: { fontSize: '10px', fontWeight: 700 }, formatter: (v, opts) => { const total = opts.w.globals.stackedSeriesTotals[opts.dataPointIndex] || 1; return (v / total >= 0.12 && v > 0) ? v.toLocaleString() : ''; } },
+                dataLabels: { enabled: false },
                 tooltip: { ...APEX_BASE.tooltip, y: { formatter: v => v.toLocaleString() + '식' } },
                 legend: { ...APEX_BASE.legend, position: 'top' },
             }); cDITO.render(); window._apexCharts.push(cDITO);
@@ -1425,3 +1434,58 @@ function renderSparkline() { return ''; } // 구 호환 stub
 
 window.exportReport = function () { const body = document.getElementById("trend-body").innerHTML; const now = new Date().toLocaleDateString('ko-KR'); const html = `<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><title>Welstory 분석 리포트 ${now}</title><style>body{font-family:'Malgun Gothic',sans-serif;background:#0a0f1e;color:#f1f5f9;padding:24px;max-width:800px;margin:0 auto}.trend-section{background:#111827;border:1px solid rgba(148,163,184,.08);border-radius:12px;padding:18px;margin-bottom:16px}.trend-section-title{font-size:13px;font-weight:900;color:#38bdf8;margin-bottom:14px}.kpi-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}.kpi-box{background:rgba(255,255,255,.02);border:1px solid rgba(148,163,184,.08);border-radius:10px;padding:12px;text-align:center}.kl{font-size:9px;color:#64748b;font-weight:700;margin-bottom:4px}.kv{font-size:18px;font-weight:900}.kt{font-size:10px;font-weight:700;margin-top:2px}.trend-up{color:#34d399}.trend-down{color:#f87171}.trend-flat{color:#fbbf24}.tbl-wrap{border:1px solid rgba(148,163,184,.08);border-radius:8px;overflow:hidden}table{width:100%;border-collapse:collapse;font-size:11px}th{padding:8px;text-align:center;color:#64748b;font-size:10px;font-weight:700;border-bottom:1px solid rgba(148,163,184,.08)}td{padding:8px;text-align:center;border-bottom:1px solid rgba(255,255,255,.03);font-weight:700}td:first-child{text-align:left;color:#38bdf8;font-weight:800}h1{font-size:20px;font-weight:900;color:#38bdf8;margin-bottom:6px}.sub{font-size:12px;color:#64748b;margin-bottom:24px}</style></head><body><h1>📈 Welstory 정밀 분석 리포트</h1><div class="sub">생성일: ${now} · Samsung Welstory 운영 현황 관리시스템</div>${body}</body></html>`; const blob = new Blob([html], { type: 'text/html;charset=utf-8' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `Welstory_리포트_${now.replace(/\./g, '')}.html`; a.click(); };
 window.copyReportText = function () { const body = document.getElementById("trend-body"); const text = body ? body.innerText : ''; navigator.clipboard.writeText(text).then(() => alert("리포트 텍스트가 클립보드에 복사되었습니다.")).catch(() => { const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); alert("복사 완료"); }); };
+
+// 핀치-투-줌(Pinch-to-Zoom) 모바일 전용 헬퍼 함수
+function initPinchZoom(containerEl, targetEl) {
+    if (!containerEl || !targetEl) return;
+    
+    let initialDist = 0;
+    let initialWidth = 0;
+    let isPinching = false;
+    
+    // 기본 시작 폭 (allDates 개수에 따른 동적 min-width 감지)
+    const minWidth = parseInt(targetEl.style.minWidth) || 360;
+    
+    containerEl.addEventListener('touchstart', function(e) {
+        if (e.touches.length === 2) {
+            isPinching = true;
+            initialDist = getTouchDist(e.touches);
+            initialWidth = targetEl.offsetWidth || minWidth;
+        }
+    }, { passive: true });
+    
+    containerEl.addEventListener('touchmove', function(e) {
+        if (isPinching && e.touches.length === 2) {
+            // 브라우저 자체의 핀치 줌 동작 방지
+            if (e.cancelable) e.preventDefault();
+            
+            const dist = getTouchDist(e.touches);
+            if (dist > 0 && initialDist > 0) {
+                const scale = dist / initialDist;
+                
+                // 가로 폭을 0.6배 ~ 3.5배 범위 내에서 확장/축소
+                let newWidth = Math.round(initialWidth * scale);
+                if (newWidth < minWidth) newWidth = minWidth;
+                if (newWidth > 3000) newWidth = 3000;
+                
+                targetEl.style.width = newWidth + 'px';
+                targetEl.style.minWidth = newWidth + 'px';
+            }
+        }
+    }, { passive: false });
+    
+    containerEl.addEventListener('touchend', function(e) {
+        if (isPinching) {
+            if (e.touches.length < 2) {
+                isPinching = false;
+                initialDist = 0;
+            }
+        }
+    }, { passive: true });
+    
+    function getTouchDist(touches) {
+        const dx = touches[0].clientX - touches[1].clientX;
+        const dy = touches[0].clientY - touches[1].clientY;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+}
