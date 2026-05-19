@@ -341,8 +341,24 @@ function renderTrendReport() {
     const recs = getMergedTrendData();
     const regSel = document.getElementById("trend-region-sel");
     const selRegion = regSel ? regSel.value : "ALL";
-    const regionSites = selRegion === "ALL" ? null : new Set(D.filter(d => d["지역"] === selRegion).map(d => d["사업장명"]));
-    const recsToUse = selRegion === "ALL" ? recs : recs.filter(r => regionSites && regionSites.has(r.siteName));
+    const regionSites = new Set();
+    if (selRegion !== "ALL") {
+        D.filter(d => d["지역"] === selRegion).forEach(d => {
+            const sn = d["사업장명"] || "";
+            regionSites.add(sn);
+            regionSites.add(sn.toLowerCase());
+            regionSites.add(sn.toUpperCase());
+            if (sn.toUpperCase() === "SDR") {
+                regionSites.add("sdr");
+                regionSites.add("SDR");
+            }
+            if (sn === "미래기술캠퍼스" || sn === "미캠") {
+                regionSites.add("미캠");
+                regionSites.add("미래기술캠퍼스");
+            }
+        });
+    }
+    const recsToUse = selRegion === "ALL" ? recs : recs.filter(r => regionSites.has(r.siteName));
     const regionLabel = selRegion === "ALL" ? "전체 지역" : selRegion;
 
     if (!recsToUse.length) {
@@ -479,9 +495,24 @@ function mkFilterHTML(mk, sites, siteFilter) {
     // 사업장 지역별 그룹화
     const regionMap = {};
     sites.forEach(s => {
-        // D 배열에서 소속 지역 검색
-        const dObj = typeof D !== 'undefined' ? D.find(x => x["사업장명"] === s) : null;
-        const r = dObj ? (dObj["지역"] || "기타") : "기타";
+        // D 배열에서 소속 지역 검색 (대소문자 및 축약어 대응하여 매핑)
+        const dObj = typeof D !== 'undefined' ? D.find(x => {
+            const nameX = (x["사업장명"] || "").toUpperCase();
+            const nameS = s.toUpperCase();
+            if (nameX === nameS) return true;
+            if ((nameS === "SDR" && nameX === "SDR") || (nameS === "미캠" && nameX === "미래기술캠퍼스")) return true;
+            return false;
+        }) : null;
+        
+        let r = dObj ? (dObj["지역"] || "기타") : "기타";
+        
+        // SDR -> 기흥지역, 미캠 -> 화성1지역 편입 오버라이드 (추가 안전장치)
+        if (s.toLowerCase() === "sdr") {
+            r = "기흥지역";
+        } else if (s === "미캠") {
+            r = "화성1지역";
+        }
+        
         if (!regionMap[r]) regionMap[r] = [];
         regionMap[r].push(s);
     });
