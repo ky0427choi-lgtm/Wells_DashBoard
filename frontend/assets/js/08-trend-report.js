@@ -1126,11 +1126,25 @@ function renderTabDaily(body) {
                 dataLabels: { enabled: true, formatter: v => v > 0 ? v.toLocaleString() : '', style: { fontSize: '9px', colors: ['#e2e8f0'] }, offsetY: -16 },
                 xaxis: { ...APEX_BASE.xaxis, crosshairs: { show: false }, categories: ['월', '화', '수', '목', '금'] },
                 yaxis: { ...APEX_BASE.yaxis, min: Math.max(0, Math.floor(Math.min(...wdData.filter(v => v > 0)) * 0.95)) },
-                grid: { ...APEX_BASE.grid, xaxis: { lines: { show: false } } },
-                annotations: { yaxis: [
-                    { y: wdAvgLine, borderColor: mkColor + '66', strokeDashArray: 3, label: { text: `평균 ${wdAvgLine}`, style: { background: mkColor + '14', color: mkColor, fontSize: '9px' } } },
-                    { y: maxWd, borderColor: '#fbbf24', strokeDashArray: 0, borderWidth: 1.5, label: { text: `👑 최고 요일 (${maxDay}) : ${maxWd.toLocaleString()}식`, position: 'left', textAnchor: 'start', offsetX: 10, style: { background: '#fbbf24', color: '#000000', fontSize: '9px', fontWeight: 900 } } }
-                ] },
+                grid: { show: false },
+                annotations: { 
+                    yaxis: [
+                        { y: wdAvgLine, borderColor: mkColor + '66', strokeDashArray: 3, label: { text: `평균 ${wdAvgLine}`, style: { background: mkColor + '14', color: mkColor, fontSize: '9px' } } },
+                        { y: maxWd, borderColor: '#fbbf24', strokeDashArray: 0, borderWidth: 1.5, label: { text: `👑 최고 요일 (${maxDay}) : ${maxWd.toLocaleString()}식`, position: 'left', textAnchor: 'start', offsetX: 10, style: { background: '#fbbf24', color: '#000000', fontSize: '9px', fontWeight: 900 } } }
+                    ],
+                    xaxis: [
+                        {
+                            x: maxDay,
+                            fillColor: '#fbbf24',
+                            opacity: 0.12,
+                            borderColor: 'transparent',
+                            label: {
+                                text: '🔥 PEAK',
+                                style: { color: '#fbbf24', background: '#2e2a14', fontSize: '8px', fontWeight: 800 }
+                            }
+                        }
+                    ]
+                },
                 states: { hover: { filter: { type: 'none' } }, active: { filter: { type: 'none' } } },
                 legend: { show: false },
                 tooltip: { ...APEX_BASE.tooltip, y: { formatter: v => v.toLocaleString() + '식' } },
@@ -1146,7 +1160,7 @@ function renderTabDaily(body) {
                 dataLabels: { enabled: true, formatter: v => v > 0 ? v.toLocaleString() : '없음', style: { fontSize: '9px', colors: ['#64748b'] } },
                 xaxis: { ...APEX_BASE.xaxis, crosshairs: { show: false }, categories: ['토', '일'] },
                 yaxis: { ...APEX_BASE.yaxis, min: 0, max: Math.max(...weData, 1) * 1.5 },
-                grid: { ...APEX_BASE.grid, xaxis: { lines: { show: false } } },
+                grid: { show: false },
                 annotations: { yaxis: [{ y: wdAvgLine, borderColor: mkColor + '55', strokeDashArray: 4, label: { text: '평일평균', style: { background: mkColor + '14', color: mkColor, fontSize: '9px' } } }] },
                 states: { hover: { filter: { type: 'none' } }, active: { filter: { type: 'none' } } },
                 legend: { show: false },
