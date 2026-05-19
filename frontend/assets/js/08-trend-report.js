@@ -1066,6 +1066,12 @@ function renderTabDaily(body) {
     const minDI = dayAvgDI[minDay] || 0;
     const minTO = dayAvgTO[minDay] || 0;
 
+    const wdDataDI = DAYS.slice(0, 5).map(d => dayAvgDI[d]);
+    const wdDataTO = DAYS.slice(0, 5).map(d => dayAvgTO[d]);
+    const diffTotal = maxVal - minVal;
+    const diffDI = Math.max(...wdDataDI) - Math.min(...wdDataDI.filter(v => v > 0));
+    const diffTO = Math.max(...wdDataTO) - Math.min(...wdDataTO.filter(v => v > 0));
+
     body.innerHTML = `
     <div style="padding:4px 0 16px">
     ${mkFilterHTML(mk, window._trCtx.sites, sfilt)}
@@ -1073,17 +1079,20 @@ function renderTabDaily(body) {
         <div class="kpi-v2 accent" style="padding:8px 4px; text-align:center; border-radius:10px;">
             <div class="kv2-lbl" style="font-size:10px; font-weight:800; opacity:0.8; margin-bottom:4px; white-space:nowrap;">최대 ${mk} 요일</div>
             <div class="kv2-val" style="color:${mkColor}; font-size:16px; font-weight:900; margin-bottom:2px;">${maxDay}요일</div>
-            <div class="kv2-sub" style="font-size:8px; color:var(--dim); font-weight:700; white-space:nowrap; letter-spacing:-0.3px;">${maxVal.toLocaleString()}식 / ${maxDI.toLocaleString()} / ${maxTO.toLocaleString()}</div>
+            <div class="kv2-sub" style="font-size:9.5px; color:#ffffff; font-weight:900; margin-bottom:2px; white-space:nowrap;">${maxVal.toLocaleString()}식</div>
+            <div class="kv2-sub" style="font-size:8px; color:var(--dim); font-weight:700; white-space:nowrap; letter-spacing:-0.3px;">일반 ${maxDI.toLocaleString()} / TO ${maxTO.toLocaleString()}</div>
         </div>
         <div class="kpi-v2 warning" style="padding:8px 4px; text-align:center; border-radius:10px;">
             <div class="kv2-lbl" style="font-size:10px; font-weight:800; opacity:0.8; margin-bottom:4px; white-space:nowrap;">최저 ${mk} 요일</div>
             <div class="kv2-val" style="color:#fbbf24; font-size:16px; font-weight:900; margin-bottom:2px;">${minDay}요일</div>
-            <div class="kv2-sub" style="font-size:8px; color:var(--dim); font-weight:700; white-space:nowrap; letter-spacing:-0.3px;">${minVal.toLocaleString()}식 / ${minDI.toLocaleString()} / ${minTO.toLocaleString()}</div>
+            <div class="kv2-sub" style="font-size:9.5px; color:#ffffff; font-weight:900; margin-bottom:2px; white-space:nowrap;">${minVal.toLocaleString()}식</div>
+            <div class="kv2-sub" style="font-size:8px; color:var(--dim); font-weight:700; white-space:nowrap; letter-spacing:-0.3px;">일반 ${minDI.toLocaleString()} / TO ${minTO.toLocaleString()}</div>
         </div>
         <div class="kpi-v2 success" style="padding:8px 4px; text-align:center; border-radius:10px;">
             <div class="kv2-lbl" style="font-size:10px; font-weight:800; opacity:0.8; margin-bottom:4px; white-space:nowrap;">요일별 편차</div>
-            <div class="kv2-val" style="color:#34d399; font-size:16px; font-weight:900; margin-bottom:2px;">${(maxVal - minVal).toLocaleString()}식</div>
-            <div class="kv2-sub" style="font-size:8px; color:var(--dim); font-weight:700; white-space:nowrap; letter-spacing:-0.3px;">최대-최저</div>
+            <div class="kv2-val" style="color:#34d399; font-size:16px; font-weight:900; margin-bottom:2px;">${diffTotal.toLocaleString()}식</div>
+            <div class="kv2-sub" style="font-size:9.5px; color:#ffffff; font-weight:900; margin-bottom:2px; white-space:nowrap;">편차 상세</div>
+            <div class="kv2-sub" style="font-size:8px; color:var(--dim); font-weight:700; white-space:nowrap; letter-spacing:-0.3px;">일반 ${diffDI.toLocaleString()} / TO ${diffTO.toLocaleString()}</div>
         </div>
     </div>
     <div style="display:flex;flex-direction:column;gap:16px;margin-bottom:12px">
@@ -1117,7 +1126,11 @@ function renderTabDaily(body) {
                 dataLabels: { enabled: true, formatter: v => v > 0 ? v.toLocaleString() : '', style: { fontSize: '9px', colors: ['#e2e8f0'] }, offsetY: -16 },
                 xaxis: { ...APEX_BASE.xaxis, crosshairs: { show: false }, categories: ['월', '화', '수', '목', '금'] },
                 yaxis: { ...APEX_BASE.yaxis, min: Math.max(0, Math.floor(Math.min(...wdData.filter(v => v > 0)) * 0.95)) },
-                annotations: { yaxis: [{ y: wdAvgLine, borderColor: mkColor + '66', strokeDashArray: 3, label: { text: `평균 ${wdAvgLine}`, style: { background: mkColor + '14', color: mkColor, fontSize: '9px' } } }] },
+                grid: { ...APEX_BASE.grid, xaxis: { lines: { show: false } } },
+                annotations: { yaxis: [
+                    { y: wdAvgLine, borderColor: mkColor + '66', strokeDashArray: 3, label: { text: `평균 ${wdAvgLine}`, style: { background: mkColor + '14', color: mkColor, fontSize: '9px' } } },
+                    { y: maxWd, borderColor: '#fbbf24', strokeDashArray: 0, borderWidth: 1.5, label: { text: `👑 최고 요일 (${maxDay}) : ${maxWd.toLocaleString()}식`, position: 'left', textAnchor: 'start', offsetX: 10, style: { background: '#fbbf24', color: '#000000', fontSize: '9px', fontWeight: 900 } } }
+                ] },
                 states: { hover: { filter: { type: 'none' } }, active: { filter: { type: 'none' } } },
                 legend: { show: false },
                 tooltip: { ...APEX_BASE.tooltip, y: { formatter: v => v.toLocaleString() + '식' } },
@@ -1133,6 +1146,7 @@ function renderTabDaily(body) {
                 dataLabels: { enabled: true, formatter: v => v > 0 ? v.toLocaleString() : '없음', style: { fontSize: '9px', colors: ['#64748b'] } },
                 xaxis: { ...APEX_BASE.xaxis, crosshairs: { show: false }, categories: ['토', '일'] },
                 yaxis: { ...APEX_BASE.yaxis, min: 0, max: Math.max(...weData, 1) * 1.5 },
+                grid: { ...APEX_BASE.grid, xaxis: { lines: { show: false } } },
                 annotations: { yaxis: [{ y: wdAvgLine, borderColor: mkColor + '55', strokeDashArray: 4, label: { text: '평일평균', style: { background: mkColor + '14', color: mkColor, fontSize: '9px' } } }] },
                 states: { hover: { filter: { type: 'none' } }, active: { filter: { type: 'none' } } },
                 legend: { show: false },
