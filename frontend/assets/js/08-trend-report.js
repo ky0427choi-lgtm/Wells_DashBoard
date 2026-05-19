@@ -241,9 +241,13 @@ function getMergedTrendData() {
     
     // 2. 베이스라인 적용 (모든 과거 데이터의 근간)
     baseline.forEach(b => {
-        const key = `${b.date}|${b.siteName}|${b.meal}`;
+        let sName = b.siteName;
+        if (sName === "미래기술캠퍼스") sName = "미캠";
+        if (sName === "sdr" || sName === "SDR") sName = "SDR";
+        
+        const key = `${b.date}|${sName}|${b.meal}`;
         mergedMap[key] = {
-            date: b.date, siteName: b.siteName, region: b.region, meal: b.meal,
+            date: b.date, siteName: sName, region: b.region, meal: b.meal,
             [`DI_${b.meal}`]: b.actual, [`TO_${b.meal}`]: 0,
             isBaseline: true
         };
@@ -713,7 +717,8 @@ function renderTabTrend(body) {
     /* ★ v4.4: 전년 대비(YoY) 비교 요약 계산 */
     let yoyHtml = "";
     if (window._historicalStats2025 && selectedSites.length === 1) {
-        const sName = selectedSites[0];
+        let sName = selectedSites[0];
+        if (sName === "미캠") sName = "미래기술캠퍼스";
         const histM = todayObj.getMonth(); // 당월 기준
         const histVal = window._historicalStats2025.stats[sName]?.[mk]?.[histM] || 0;
         const currVal = normAvg;

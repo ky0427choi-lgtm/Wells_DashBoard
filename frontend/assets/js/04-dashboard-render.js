@@ -5,8 +5,10 @@ function _normalizeRegions(arr) {
     if (!Array.isArray(arr)) return arr;
     return arr.map(s => {
         if (s["사업장명"] === "sdr" || s["사업장명"] === "SDR") {
+            s["사업장명"] = "SDR";
             s["지역"] = "기흥지역";
         } else if (s["사업장명"] === "미캠" || s["사업장명"] === "미래기술캠퍼스") {
+            s["사업장명"] = "미캠";
             s["지역"] = "화성1지역";
         }
         return s;

@@ -94,9 +94,13 @@ function saveRec(arr) { localStorage.setItem("WS_REC", JSON.stringify(arr)); }
 function _recKey(rec) { return `${String(rec.date || "").trim()}||${String(rec.siteName || "").trim()}`; }
 
 function normalizePerfRow(row) {
+    let sName = String(row.siteName || row["사업장명"] || "").trim();
+    if (sName === "미래기술캠퍼스") sName = "미캠";
+    if (sName.toLowerCase() === "sdr") sName = "SDR";
+    
     return {
         date: String(row.date || row["날짜"] || "").slice(0, 10),
-        siteName: String(row.siteName || row["사업장명"] || "").trim(),
+        siteName: sName,
         region: String(row.region || row["지역"] || "").trim(),
         DI_조식: n(row.DI_조식), DI_중식: n(row.DI_중식), DI_석식: n(row.DI_석식), DI_야식: n(row.DI_야식),
         TO_조식: n(row.TO_조식), TO_중식: n(row.TO_중식), TO_석식: n(row.TO_석식), TO_야식: n(row.TO_야식),
@@ -106,12 +110,16 @@ function normalizePerfRow(row) {
 }
 
 function normalizeForecastRow(row) {
+    let sName = String(row.siteName || row["사업장명"] || "").trim();
+    if (sName === "미래기술캠퍼스") sName = "미캠";
+    if (sName.toLowerCase() === "sdr") sName = "SDR";
+
     return {
         createdAt: row.createdAt || row["생성일시"] || "",
         baseDate: String(row.baseDate || row["기준일"] || "").slice(0, 10),
         targetDate: String(row.targetDate || row["예측대상일"] || "").slice(0, 10),
         region: String(row.region || row["지역"] || "").trim(),
-        siteName: String(row.siteName || row["사업장명"] || "").trim(),
+        siteName: sName,
         meal: String(row.meal || row["끼니"] || "").trim(),
         predicted: n(row.predicted != null ? row.predicted : row["예측값"]),
         actual: row.actual === '' || row.actual == null ? '' : n(row.actual != null ? row.actual : row["실제값"]),
