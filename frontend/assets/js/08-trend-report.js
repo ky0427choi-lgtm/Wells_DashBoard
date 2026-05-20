@@ -1422,12 +1422,11 @@ function renderTabReport(body) {
             <span style="color:var(--dim)">주말 변화율 ${weS > 0 ? '+' : ''}${weS.toFixed(1)}식/일 · 평일 ${wdValsFr.length}일 / 주말 ${weVals.length}일 데이터 기반</span>
         </div>
     </div>
-    ${_renderAppendixPanel()}
-    <div class="ch-panel" style="display:none;background:rgba(56,189,248,.02);border:1px dashed rgba(56,189,248,.3)">
+    <div class="ch-panel" style="background:rgba(56,189,248,.02);border:1px dashed rgba(56,189,248,.3)">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
             <div class="ch-panel-title" style="color:var(--accent);margin-bottom:0">📌 운영 별첨 (DS 식대 지원금 안내)</div>
             <button id="appendix-edit-btn" onclick="window.toggleAppendixEdit()" title="내용 수정"
-                style="display:flex;align-items:center;gap:4px;padding:5px 12px;border-radius:8px;border:1px solid rgba(56,189,248,.3);background:rgba(56,189,248,.08);color:#7dd3fc;font-size:11px;font-weight:800;cursor:pointer;transition:all .2s">
+                style="display:none;align-items:center;gap:4px;padding:5px 12px;border-radius:8px;border:1px solid rgba(56,189,248,.3);background:rgba(56,189,248,.08);color:#7dd3fc;font-size:11px;font-weight:800;cursor:pointer;transition:all .2s">
                 ✏️ 수정
             </button>
         </div>
@@ -1484,6 +1483,7 @@ function renderTabReport(body) {
             viewEl.innerHTML = savedAppendix;
         }
     } catch(e) {}
+    _initAppendixBoxEditors();
 
     setTimeout(() => {
         /* ★ DI/TO 분리 차트 렌더링 */
@@ -1633,198 +1633,82 @@ function initPinchZoom(containerEl, targetEl) {
 }
 
 /* ─────────────── 운영 별첨 인라인 편집 기능 ─────────────── */
-function _appendixDefaultData() {
-    return {
-        columns: ['식단가', '상시지원금', '면역력증진', '주말지원금', '건강지원금', 'DS가든', '합계'],
-        rows: ['조식', '중식', '석식', '야식'].map(label => ({ label, cells: ['', '', '', '', '', '', ''] })),
-        note: '중요 안내사항을 입력하세요.'
-    };
+function _initAppendixBoxEditors() {
+    const viewEl = document.getElementById('appendix-view');
+    if (!viewEl) return;
+
+    const boxes = [
+        ...viewEl.querySelectorAll(':scope > div:first-child > div'),
+        viewEl.querySelector(':scope > div:nth-child(2)')
+    ].filter(Boolean);
+
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem('WS_APPENDIX_BOXES') || '{}'); } catch (e) {}
+
+    boxes.forEach((box, idx) => {
+        const key = `box${idx}`;
+        box.dataset.appendixBox = key;
+        box.style.position = 'relative';
+        box.style.paddingTop = '34px';
+
+        if (saved[key]) box.innerHTML = saved[key];
+        if (box.querySelector('.appendix-box-edit-btn')) return;
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'appendix-box-edit-btn';
+        btn.textContent = '✎ 수정';
+        btn.onclick = () => window.editAppendixBox(key);
+        btn.style.cssText = 'position:absolute;top:8px;right:8px;padding:4px 9px;border-radius:7px;border:1px solid rgba(56,189,248,.28);background:rgba(56,189,248,.08);color:#7dd3fc;font-size:10px;font-weight:800;cursor:pointer';
+        box.prepend(btn);
+    });
 }
 
-function _appendixLoadData() {
-    try {
-        const saved = localStorage.getItem('WS_APPENDIX_V2');
-        if (saved) return _appendixNormalize(JSON.parse(saved));
-    } catch (e) {}
-    return _appendixDefaultData();
-}
+window.editAppendixBox = function (key) {
+    const box = document.querySelector(`[data-appendix-box="${key}"]`);
+    if (!box || box.dataset.editing === '1') return;
 
-function _appendixSaveData(data) {
-    try { localStorage.setItem('WS_APPENDIX_V2', JSON.stringify(_appendixNormalize(data))); } catch (e) {}
-}
+    box.dataset.editing = '1';
+    const btn = box.querySelector('.appendix-box-edit-btn');
+    if (btn) btn.style.display = 'none';
+    const originalHtml = box.innerHTML;
+    const cleanHtml = originalHtml.replace(/<button[\s\S]*?appendix-box-edit-btn[\s\S]*?<\/button>/i, '').trim();
+    const text = _appendixHtmlToText(cleanHtml).trim();
 
-function _appendixNormalize(data) {
-    const base = _appendixDefaultData();
-    const columns = Array.isArray(data?.columns) && data.columns.length ? data.columns.map(v => String(v || '').trim() || '항목') : base.columns;
-    const rows = Array.isArray(data?.rows) && data.rows.length ? data.rows : base.rows;
-    return {
-        columns,
-        rows: rows.map((row, idx) => {
-            const cells = Array.isArray(row.cells) ? row.cells : [];
-            return {
-                label: String(row.label || base.rows[idx]?.label || '행'),
-                cells: columns.map((_, i) => String(cells[i] ?? ''))
-            };
-        }),
-        note: String(data?.note ?? base.note)
-    };
-}
-
-function _appendixEsc(value) {
-    return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
-function _renderAppendixPanel() {
-    const data = _appendixLoadData();
-    return `
-    <div class="ch-panel appendix-v2">
-        <div class="appendix-head">
-            <div class="ch-panel-title appendix-title">📌 운영 별첨 (DS 식대 지원금 안내)</div>
-        </div>
-        <div class="appendix-section">
-            <div class="appendix-subhead">
-                <strong>지원금 표</strong>
-                <button class="appendix-mini-btn" onclick="window.editAppendixTable()">✎ 표 수정</button>
-            </div>
-            <div id="appendix-table-view">${_renderAppendixTableView(data)}</div>
-            <div id="appendix-table-edit" style="display:none"></div>
-        </div>
-        <div class="appendix-section">
-            <div class="appendix-subhead">
-                <strong>중요 노트</strong>
-                <button class="appendix-mini-btn" onclick="window.editAppendixNote()">✎ 노트 수정</button>
-            </div>
-            <div id="appendix-note-view">${_renderAppendixNoteView(data.note)}</div>
-            <div id="appendix-note-edit" style="display:none"></div>
-        </div>
-    </div>`;
-}
-
-function _renderAppendixTableView(data) {
-    data = _appendixNormalize(data);
-    return `
-    <div class="appendix-table-wrap">
-        <table class="appendix-table">
-            <thead><tr><th>구분</th>${data.columns.map(col => `<th>${_appendixEsc(col)}</th>`).join('')}</tr></thead>
-            <tbody>${data.rows.map(row => `<tr><th>${_appendixEsc(row.label)}</th>${row.cells.map(cell => `<td>${_appendixEsc(cell) || '-'}</td>`).join('')}</tr>`).join('')}</tbody>
-        </table>
-    </div>`;
-}
-
-function _renderAppendixNoteView(note) {
-    return `<div class="appendix-note">${_appendixEsc(note || '').replace(/\n/g, '<br>') || '-'}</div>`;
-}
-
-function _renderAppendixTableEditor() {
-    const data = _appendixLoadData();
-    const html = `
-    <div class="appendix-table-wrap">
-        <table class="appendix-table appendix-edit-table">
-            <thead><tr><th><input value="구분" disabled></th>${data.columns.map((col, ci) => `<th><input data-col="${ci}" value="${_appendixEsc(col)}"><button onclick="window.deleteAppendixCol(${ci})">삭제</button></th>`).join('')}<th>행</th></tr></thead>
-            <tbody>${data.rows.map((row, ri) => `<tr><th><input data-row="${ri}" value="${_appendixEsc(row.label)}"></th>${data.columns.map((_, ci) => `<td><input data-cell="${ri}:${ci}" value="${_appendixEsc(row.cells[ci])}"></td>`).join('')}<td><button onclick="window.deleteAppendixRow(${ri})">삭제</button></td></tr>`).join('')}</tbody>
-        </table>
-    </div>
-    <div class="appendix-actions">
-        <button onclick="window.addAppendixRow()">+ 행 추가</button>
-        <button onclick="window.addAppendixCol()">+ 열 추가</button>
-        <span></span>
-        <button onclick="window.cancelAppendixTable()">취소</button>
-        <button class="primary" onclick="window.saveAppendixTable()">저장</button>
-    </div>`;
-    const editEl = document.getElementById('appendix-table-edit');
-    if (editEl) editEl.innerHTML = html;
-}
-
-function _appendixReadTableEditor() {
-    const current = _appendixLoadData();
-    const columns = current.columns.map((_, ci) => document.querySelector(`[data-col="${ci}"]`)?.value || '항목');
-    const rows = current.rows.map((row, ri) => ({
-        label: document.querySelector(`[data-row="${ri}"]`)?.value || row.label || '행',
-        cells: columns.map((_, ci) => document.querySelector(`[data-cell="${ri}:${ci}"]`)?.value || '')
-    }));
-    return _appendixNormalize({ ...current, columns, rows });
-}
-
-window.editAppendixTable = function () {
-    _renderAppendixTableEditor();
-    document.getElementById('appendix-table-view').style.display = 'none';
-    document.getElementById('appendix-table-edit').style.display = 'block';
-};
-
-window.saveAppendixTable = function () {
-    const data = _appendixReadTableEditor();
-    _appendixSaveData(data);
-    document.getElementById('appendix-table-view').innerHTML = _renderAppendixTableView(data);
-    document.getElementById('appendix-table-view').style.display = '';
-    document.getElementById('appendix-table-edit').style.display = 'none';
-    _showAppendixToast('표가 저장되었습니다');
-};
-
-window.cancelAppendixTable = function () {
-    document.getElementById('appendix-table-view').style.display = '';
-    document.getElementById('appendix-table-edit').style.display = 'none';
-};
-
-window.addAppendixRow = function () {
-    const data = _appendixReadTableEditor();
-    data.rows.push({ label: '새 행', cells: data.columns.map(() => '') });
-    _appendixSaveData(data);
-    _renderAppendixTableEditor();
-};
-
-window.addAppendixCol = function () {
-    const data = _appendixReadTableEditor();
-    data.columns.push('새 항목');
-    data.rows.forEach(row => row.cells.push(''));
-    _appendixSaveData(data);
-    _renderAppendixTableEditor();
-};
-
-window.deleteAppendixRow = function (ri) {
-    const data = _appendixReadTableEditor();
-    if (data.rows.length <= 1) return _showAppendixToast('행은 1개 이상 필요합니다');
-    data.rows.splice(ri, 1);
-    _appendixSaveData(data);
-    _renderAppendixTableEditor();
-};
-
-window.deleteAppendixCol = function (ci) {
-    const data = _appendixReadTableEditor();
-    if (data.columns.length <= 1) return _showAppendixToast('열은 1개 이상 필요합니다');
-    data.columns.splice(ci, 1);
-    data.rows.forEach(row => row.cells.splice(ci, 1));
-    _appendixSaveData(data);
-    _renderAppendixTableEditor();
-};
-
-window.editAppendixNote = function () {
-    const data = _appendixLoadData();
-    const editEl = document.getElementById('appendix-note-edit');
-    editEl.innerHTML = `
-        <textarea id="appendix-note-textarea" class="appendix-note-input">${_appendixEsc(data.note)}</textarea>
-        <div class="appendix-actions">
-            <span></span><span></span><span></span>
-            <button onclick="window.cancelAppendixNote()">취소</button>
-            <button class="primary" onclick="window.saveAppendixNote()">저장</button>
+    box.innerHTML = `
+        <textarea class="appendix-box-textarea" style="width:100%;min-height:120px;background:rgba(255,255,255,.04);border:1px solid rgba(56,189,248,.4);border-radius:10px;color:#f1f5f9;font-size:12px;line-height:1.8;padding:10px;resize:vertical;font-family:inherit;outline:none;box-sizing:border-box">${text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>
+        <div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end">
+            <button onclick="window.cancelAppendixBox('${key}')" style="padding:6px 12px;border-radius:8px;border:1px solid var(--border);background:rgba(255,255,255,.04);color:var(--muted);font-size:11px;font-weight:800;cursor:pointer">취소</button>
+            <button onclick="window.saveAppendixBox('${key}')" style="padding:6px 12px;border-radius:8px;border:none;background:linear-gradient(135deg,#0ea5e9,#6366f1);color:#fff;font-size:11px;font-weight:800;cursor:pointer">저장</button>
         </div>`;
-    document.getElementById('appendix-note-view').style.display = 'none';
-    editEl.style.display = 'block';
-    document.getElementById('appendix-note-textarea').focus();
+    box.dataset.originalHtml = originalHtml;
+    const textarea = box.querySelector('.appendix-box-textarea');
+    if (textarea) textarea.focus();
 };
 
-window.saveAppendixNote = function () {
-    const data = _appendixLoadData();
-    data.note = document.getElementById('appendix-note-textarea')?.value || '';
-    _appendixSaveData(data);
-    document.getElementById('appendix-note-view').innerHTML = _renderAppendixNoteView(data.note);
-    document.getElementById('appendix-note-view').style.display = '';
-    document.getElementById('appendix-note-edit').style.display = 'none';
-    _showAppendixToast('노트가 저장되었습니다');
+window.saveAppendixBox = function (key) {
+    const box = document.querySelector(`[data-appendix-box="${key}"]`);
+    const textarea = box?.querySelector('.appendix-box-textarea');
+    if (!box || !textarea) return;
+
+    const html = _appendixTextToHtml(textarea.value);
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem('WS_APPENDIX_BOXES') || '{}'); } catch (e) {}
+    saved[key] = html;
+    try { localStorage.setItem('WS_APPENDIX_BOXES', JSON.stringify(saved)); } catch (e) {}
+
+    box.dataset.editing = '0';
+    box.innerHTML = html;
+    _initAppendixBoxEditors();
+    _showAppendixToast('별첨 박스가 저장되었습니다');
 };
 
-window.cancelAppendixNote = function () {
-    document.getElementById('appendix-note-view').style.display = '';
-    document.getElementById('appendix-note-edit').style.display = 'none';
+window.cancelAppendixBox = function (key) {
+    const box = document.querySelector(`[data-appendix-box="${key}"]`);
+    if (!box) return;
+    box.dataset.editing = '0';
+    box.innerHTML = box.dataset.originalHtml || box.innerHTML;
+    _initAppendixBoxEditors();
 };
 
 window.toggleAppendixEdit = function () {
