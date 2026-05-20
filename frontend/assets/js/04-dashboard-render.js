@@ -108,7 +108,16 @@ function render() {
             else alertBanner = `<div class="alert-banner"><div class="marquee-content">${alert.msg}</div></div>`;
         }
 
-        const mAvg = n(d["금월_평균중식"]), mMom = n(d["전월대비"]);
+        /* ★ 전월대비 3단계 우선순위:
+           1순위: 서버(GAS 스프레드시트) 제공값 사용 — 가장 빠름, 계산 없음
+           2순위: _momCache (loadPerfFromGAS 완료 시 사전 계산된 캐시)
+           3순위: 서버 평균값만 표시, 비교 없음 */
+        const _serverMom = n(d["전월대비"]);
+        const _mc = window._momCache && window._momCache[sn];
+        const mAvg = n(d["금월_평균중식"]) || (_mc ? _mc.mAvg : 0);
+        const mMom = _serverMom !== 0 ? _serverMom : (_mc ? _mc.mMom : 0);
+        const _momLabel = _serverMom !== 0 ? '전월대비' : (_mc ? _mc.momLabel : '전월대비');
+        const _momSub   = _serverMom !== 0 ? null       : (_mc ? _mc.momSub   : null);
         const momClass = mMom > 0 ? "up" : (mMom < 0 ? "down" : ""), momIcon = mMom > 0 ? "↑" : (mMom < 0 ? "↓" : "→");
         const canEdit = ["M", "A", "B"].includes(USER_ROLE);
 
@@ -122,7 +131,7 @@ function render() {
                     <div class="monthly-bar">
                         <div class="mb-item"><span>📊 금월 평균</span><span class="mb-val">${mAvg > 0 ? f(mAvg) + '식' : '-'}</span></div>
                         <div class="mb-split">|</div>
-                        <div class="mb-item"><span>전월대비</span><span class="mb-pct ${momClass}">${momIcon} ${Math.abs(mMom)}%</span></div>
+                        <div class="mb-item"><span id="mom_lbl_${u}">${_momLabel}</span><span id="mom_pct_${u}" class="mb-pct ${momClass}" title="${_momSub || ''}">${momIcon} ${Math.abs(mMom)}%${_momSub ? ' <span style="font-size:9px;opacity:.7">' + _momSub + '</span>' : ''}</span></div>
                     </div>
                 </div>
                 <div class="total-badge"><div class="label">투입인원</div><div class="val">${st}<span style="font-size:12px;opacity:.6">명</span></div></div>

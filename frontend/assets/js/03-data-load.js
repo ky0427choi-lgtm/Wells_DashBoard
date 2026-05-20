@@ -155,9 +155,6 @@ function _applyPerfData(d) {
     // 로컬 스토리지에 병합하여 저장
     let currentRecs = getRec();
     
-    // 베이스라인이 있다면 베이스라인을 기본으로 깔고 그 위에 실적 덮어쓰기
-    // (다만 로컬 스토리지 저장 용량 이슈가 있으므로 메모리 캐시 전략이 나을 수 있음)
-    
     perfRows.forEach(gasRec => {
         const key = _recKey(gasRec);
         const idx = currentRecs.findIndex(r => _recKey(r) === key);
@@ -166,7 +163,21 @@ function _applyPerfData(d) {
     });
     currentRecs.sort((a, b) => (a.date || '') > (b.date || '') ? -1 : 1);
     saveRec(currentRecs);
+
+    /* ★ 전월대비 캐시 빌드 & DOM 패치 (전체 재렌더 없이 숫자만 교체)
+       _gasPerfCache가 방금 채워졌으므로 buildMomCache가 메모리 데이터를 사용함 */
+    try {
+        if (typeof buildMomCache === 'function' && window.D && window.D.length > 0) {
+            buildMomCache(window.D);
+            /* 대시보드가 화면에 표시 중일 때만 DOM 패치 */
+            const db = document.getElementById('dashboard');
+            if (db && db.style.display !== 'none' && typeof refreshMomDisplay === 'function') {
+                refreshMomDisplay();
+            }
+        }
+    } catch(e) {}
 }
+
 
 window.jumpToPerf = function (siteName, dateStr) {
     try { closeCal(); } catch (e) { }
