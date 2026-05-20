@@ -101,6 +101,23 @@
     justify-content: space-between;
     background: rgba(17, 24, 39, .9);
     flex-shrink: 0;
+    gap: 10px;
+}
+
+.trend-header > div:first-child {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.trend-header > div:first-child > div:first-child {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.trend-header > div:last-child {
+    flex-shrink: 0;
+    white-space: nowrap;
 }
 
 .trend-body {

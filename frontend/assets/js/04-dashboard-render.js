@@ -70,13 +70,19 @@ function chips() {
         ? [{ v: "ALL", l: "전체" }, ...rg.map(r => ({ v: r, l: r }))].map(c => `<button class="chip ${REG === c.v ? " active" : ""}" onclick="setR('${c.v}')">${c.l}</button>`).join("")
         : "";
 }
-window.setR = function (r) { REG = r; chips(); render(); };
+window.setR = function (r) {
+    REG = r;
+    const ov = document.getElementById("ov");
+    if (ov) ov.style.display = "none";
+    chips();
+    render();
+};
 
 function render() {
     const g = document.getElementById("grid");
     const fd = D.filter(d => REG === "ALL" || d["지역"] === REG);
     const canReport = ["M", "A", "B"].includes(USER_ROLE);
-    document.getElementById("rpt-btn").style.display = (canReport && REG !== "ALL") ? "flex" : "none";
+    document.getElementById("rpt-btn").style.display = "none";
 
     g.innerHTML = fd.map((d, i) => {
         const sn = d["사업장명"], rg = d["지역"], u = sn.replace(/[^a-zA-Z0-9가-힣]/g, '') + '_' + i;
