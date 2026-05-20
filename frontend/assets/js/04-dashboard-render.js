@@ -147,9 +147,9 @@ function render() {
                 <tr class="row-sum"><td>합계</td><td>${f(gS("조식"))}</td><td>${f(gS("중식"))}</td><td>${f(gS("석식"))}</td><td>${f(gS("야식"))}</td></tr>
             </tbody></table></div>
             <div class="btn-row">
-                <button class="mbtn pri" onclick="tp('${u}','perf')">📝 실적기록</button>
-                <button class="mbtn" onclick="tp('${u}','wknd')">📅 주말현황</button>
-                <button class="mbtn" onclick="tp('${u}','goal')">🎯 도전목표</button>
+                <button class="mbtn pri" onclick="tp('${u}','perf')">실적기록</button>
+                <button class="mbtn" onclick="tp('${u}','wknd')">주말현황</button>
+                <button class="mbtn" onclick="tp('${u}','goal')">도전목표</button>
             </div>
             <!-- 실적 등록 패널 -->
             <div id="p_perf_${u}" class="ipanel">

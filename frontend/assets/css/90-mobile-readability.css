@@ -420,7 +420,19 @@ td:first-child {
     }
 
     .btn-row {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
+    }
+
+    .mbtn {
+        min-height: 34px !important;
+        height: 34px !important;
+        border-radius: 8px !important;
+        font-size: 11px !important;
+        padding: 0 4px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
     }
 
     .fg {
