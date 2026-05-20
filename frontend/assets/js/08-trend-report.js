@@ -758,10 +758,10 @@ function renderTabTrend(body) {
         ${lowDates.length > 0 ? `<div style="font-size:9px;color:var(--dim);margin-top:8px;line-height:1.5">🟠 해당 날짜: ${lowDates.map(d => d.slice(5)).join(' · ')}</div>` : '<div style="font-size:9px;color:var(--dim)">평일 중 최저치(저조기) 데이터 없음</div>'}
     </div>
     <!-- 추이 + 예측 차트 -->
-    <div class="ch-panel trend-chart-panel" style="min-height:240px">
+    <div class="ch-panel trend-chart-panel" style="margin-bottom:14px">
         <div class="ch-panel-title">📈 ${mk} 일별 추이 & WMA 예측 <span style="font-size:9px;color:${aiAccColor};font-weight:700;margin-left:6px">정확도 ${aiAccText}</span> <span style="font-size:9px;color:var(--dim);font-weight:400">🟠저조기 / 🟡주말 / 🔴공휴일</span></div>
         <div class="chart-scroll-wrap">
-            <div id="chartTrend" class="ch-apex" style="min-width:${Math.max(360, allDates.length * 34)}px; min-height:190px">
+            <div id="chartTrend" class="ch-apex" style="min-width:${Math.max(360, allDates.length * 34)}px; min-height:190px; margin-bottom:-25px;">
                 <div style="display:flex;align-items:center;justify-content:center;height:190px;opacity:.3">차트 생성 중...</div>
             </div>
         </div>
