@@ -528,7 +528,8 @@ td:first-child {
 
     .trend-modal .trend-chart-panel {
         padding-top: 12px !important;
-        min-height: 220px !important;
+        min-height: auto !important;
+        margin-bottom: 14px !important;
     }
 
     .trend-modal .trend-chart-panel .ch-panel-title {
@@ -538,6 +539,7 @@ td:first-child {
     .trend-modal #chartTrend {
         min-height: 180px !important;
         margin-top: -8px !important;
+        margin-bottom: -25px !important;
     }
     .trend-modal .trend-body .kpi-v2 {
         min-height: auto !important;
