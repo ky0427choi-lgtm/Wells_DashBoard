@@ -758,11 +758,11 @@ function renderTabTrend(body) {
         ${lowDates.length > 0 ? `<div style="font-size:9px;color:var(--dim);margin-top:8px;line-height:1.5">🟠 해당 날짜: ${lowDates.map(d => d.slice(5)).join(' · ')}</div>` : '<div style="font-size:9px;color:var(--dim)">평일 중 최저치(저조기) 데이터 없음</div>'}
     </div>
     <!-- 추이 + 예측 차트 -->
-    <div class="ch-panel" style="min-height:280px">
+    <div class="ch-panel trend-chart-panel" style="min-height:240px">
         <div class="ch-panel-title">📈 ${mk} 일별 추이 & WMA 예측 <span style="font-size:9px;color:${aiAccColor};font-weight:700;margin-left:6px">정확도 ${aiAccText}</span> <span style="font-size:9px;color:var(--dim);font-weight:400">🟠저조기 / 🟡주말 / 🔴공휴일</span></div>
         <div class="chart-scroll-wrap">
-            <div id="chartTrend" class="ch-apex" style="min-width:${Math.max(360, allDates.length * 34)}px; min-height:220px">
-                <div style="display:flex;align-items:center;justify-content:center;height:220px;opacity:.3">차트 생성 중...</div>
+            <div id="chartTrend" class="ch-apex" style="min-width:${Math.max(360, allDates.length * 34)}px; min-height:190px">
+                <div style="display:flex;align-items:center;justify-content:center;height:190px;opacity:.3">차트 생성 중...</div>
             </div>
         </div>
         <div id="chartTrendClickInfo" style="display:none;margin-top:10px;padding:12px;background:rgba(56,189,248,.04);border:1px solid rgba(56,189,248,.15);border-radius:10px"></div>
@@ -812,7 +812,7 @@ function renderTabTrend(body) {
                             const c1 = new ApexCharts(entry.target, {
                                 ...APEX_BASE,
                                 chart: {
-                                    ...APEX_BASE.chart, type: 'line', height: 220,
+                                    ...APEX_BASE.chart, type: 'line', height: 190, parentHeightOffset: 0, offsetY: -12,
                                     events: {
                                         dataPointSelection: function (event, chartContext, config) {
                                             try {
@@ -924,6 +924,7 @@ function renderTabTrend(body) {
                                     }
                                 },
                                 yaxis: { ...APEX_BASE.yaxis, min: 0, title: { text: '식수(식)', style: { color: '#64748b', fontSize: '10px' } }, labels: { ...APEX_BASE.yaxis.labels, formatter: v => v.toLocaleString() } },
+                                grid: { ...APEX_BASE.grid, padding: { top: -12, right: 8, bottom: 0, left: 4 } },
                                 annotations: {
                                     xaxis: [{
                                         x: chartDates[chartDates.length - 1].slice(5) + (
