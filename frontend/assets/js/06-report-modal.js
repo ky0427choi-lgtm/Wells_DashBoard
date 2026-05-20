@@ -52,7 +52,22 @@
                     if (regions.includes(REG)) regSel.value = REG;
                 }
             } catch (e) { }
+
+            /* ★ 운영 리포트 탭: M(마스터), S(스탭) 등급만 표시 */
+            try {
+                const reportTab = document.querySelector('.tr-tab[data-tab="report"]');
+                if (reportTab) {
+                    const canSeeReport = (typeof USER_ROLE !== 'undefined') && ['M', 'S'].includes(USER_ROLE);
+                    reportTab.style.display = canSeeReport ? '' : 'none';
+                    /* 운영 리포트 탭이 숨겨진 상태에서 해당 탭이 active면 trend 탭으로 전환 */
+                    if (!canSeeReport && _trendActiveTab === 'report') {
+                        _trendActiveTab = 'trend';
+                        document.querySelectorAll('.tr-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === 'trend'));
+                    }
+                }
+            } catch (e) { }
         }
+
 
         window.closeTrend = function () {
             document.getElementById("trend-modal").classList.remove("show");

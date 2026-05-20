@@ -1423,8 +1423,15 @@ function renderTabReport(body) {
         </div>
     </div>
     <div class="ch-panel" style="background:rgba(56,189,248,.02);border:1px dashed rgba(56,189,248,.3)">
-        <div class="ch-panel-title" style="color:var(--accent)">📌 운영 별첨 (DS 식대 지원금 안내)</div>
-        <div style="font-size:11px;line-height:1.8;color:var(--dim)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div class="ch-panel-title" style="color:var(--accent);margin-bottom:0">📌 운영 별첨 (DS 식대 지원금 안내)</div>
+            <button id="appendix-edit-btn" onclick="window.toggleAppendixEdit()" title="내용 수정"
+                style="display:flex;align-items:center;gap:4px;padding:5px 12px;border-radius:8px;border:1px solid rgba(56,189,248,.3);background:rgba(56,189,248,.08);color:#7dd3fc;font-size:11px;font-weight:800;cursor:pointer;transition:all .2s">
+                ✏️ 수정
+            </button>
+        </div>
+        <!-- 보기 모드 -->
+        <div id="appendix-view" style="font-size:11px;line-height:1.8;color:var(--dim)">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
                 <div style="padding:10px;background:rgba(255,255,255,.03);border-radius:8px">
                     <strong style="color:#fff">📅 주말 지원금</strong><br>
@@ -1448,11 +1455,38 @@ function renderTabReport(body) {
                 <span style="color:var(--warning);font-weight:800">⚠️ 11주차부터 정산 금액 조정 중 (1,500원)</span>
             </div>
         </div>
+        <!-- 편집 모드 (기본 숨김) -->
+        <div id="appendix-edit" style="display:none">
+            <div style="font-size:11px;color:var(--dim);margin-bottom:8px">✏️ 아래 내용을 직접 수정하세요. 저장 후 반영됩니다.</div>
+            <textarea id="appendix-textarea"
+                style="width:100%;min-height:200px;background:rgba(255,255,255,.04);border:1px solid rgba(56,189,248,.4);border-radius:10px;color:#f1f5f9;font-size:12px;line-height:1.8;padding:12px;resize:vertical;font-family:inherit;outline:none;box-sizing:border-box"
+                placeholder="내용을 입력하세요..."></textarea>
+            <div style="display:flex;gap:8px;margin-top:10px;justify-content:flex-end">
+                <button onclick="window.cancelAppendixEdit()"
+                    style="padding:7px 16px;border-radius:8px;border:1px solid var(--border);background:rgba(255,255,255,.04);color:var(--muted);font-size:12px;font-weight:800;cursor:pointer">
+                    취소
+                </button>
+                <button onclick="window.saveAppendixEdit()"
+                    style="padding:7px 16px;border-radius:8px;border:none;background:linear-gradient(135deg,#0ea5e9,#6366f1);color:#fff;font-size:12px;font-weight:800;cursor:pointer;box-shadow:0 4px 12px rgba(14,165,233,.3)">
+                    💾 저장
+                </button>
+            </div>
+        </div>
     </div>
     </div>`;
 
+    /* ★ 운영 별첨 초기화: localStorage에서 저장된 내용 불러오기 */
+    try {
+        const savedAppendix = localStorage.getItem('WS_APPENDIX_HTML');
+        const viewEl = document.getElementById('appendix-view');
+        if (savedAppendix && viewEl) {
+            viewEl.innerHTML = savedAppendix;
+        }
+    } catch(e) {}
+
     setTimeout(() => {
         /* ★ DI/TO 분리 차트 렌더링 */
+
         try {
             const cDITO = new ApexCharts(document.getElementById('chartRptDITO'), {
                 ...APEX_BASE,
@@ -1595,4 +1629,108 @@ function initPinchZoom(containerEl, targetEl) {
         const dy = touches[0].clientY - touches[1].clientY;
         return Math.sqrt(dx * dx + dy * dy);
     }
+}
+
+/* ─────────────── 운영 별첨 인라인 편집 기능 ─────────────── */
+window.toggleAppendixEdit = function () {
+    const viewEl = document.getElementById('appendix-view');
+    const editEl = document.getElementById('appendix-edit');
+    const textarea = document.getElementById('appendix-textarea');
+    const btn = document.getElementById('appendix-edit-btn');
+    if (!viewEl || !editEl || !textarea) return;
+
+    const isEditing = editEl.style.display !== 'none';
+    if (isEditing) {
+        /* 편집 모드 → 보기 모드 (취소와 동일) */
+        window.cancelAppendixEdit();
+    } else {
+        /* 보기 모드 → 편집 모드 */
+        /* HTML을 텍스트로 변환하여 textarea에 세팅 */
+        const saved = localStorage.getItem('WS_APPENDIX_TEXT');
+        const defaultText = saved || viewEl.innerText || viewEl.textContent;
+        textarea.value = saved || _appendixHtmlToText(viewEl.innerHTML);
+        viewEl.style.display = 'none';
+        editEl.style.display = 'block';
+        if (btn) { btn.textContent = '✕ 닫기'; btn.style.background = 'rgba(239,68,68,.1)'; btn.style.color = '#f87171'; btn.style.borderColor = 'rgba(239,68,68,.3)'; }
+        textarea.focus();
+    }
+};
+
+window.saveAppendixEdit = function () {
+    const viewEl = document.getElementById('appendix-view');
+    const editEl = document.getElementById('appendix-edit');
+    const textarea = document.getElementById('appendix-textarea');
+    const btn = document.getElementById('appendix-edit-btn');
+    if (!viewEl || !editEl || !textarea) return;
+
+    const rawText = textarea.value;
+    /* 텍스트를 HTML로 변환하여 보기 모드에 반영 */
+    const htmlContent = _appendixTextToHtml(rawText);
+    viewEl.innerHTML = htmlContent;
+
+    /* localStorage에 저장 */
+    try {
+        localStorage.setItem('WS_APPENDIX_TEXT', rawText);
+        localStorage.setItem('WS_APPENDIX_HTML', htmlContent);
+    } catch(e) {}
+
+    editEl.style.display = 'none';
+    viewEl.style.display = '';
+    if (btn) { btn.textContent = '✏️ 수정'; btn.style.background = 'rgba(56,189,248,.08)'; btn.style.color = '#7dd3fc'; btn.style.borderColor = 'rgba(56,189,248,.3)'; }
+
+    /* 저장 완료 토스트 */
+    _showAppendixToast('💾 별첨 내용이 저장되었습니다');
+};
+
+window.cancelAppendixEdit = function () {
+    const viewEl = document.getElementById('appendix-view');
+    const editEl = document.getElementById('appendix-edit');
+    const btn = document.getElementById('appendix-edit-btn');
+    if (!viewEl || !editEl) return;
+    editEl.style.display = 'none';
+    viewEl.style.display = '';
+    if (btn) { btn.textContent = '✏️ 수정'; btn.style.background = 'rgba(56,189,248,.08)'; btn.style.color = '#7dd3fc'; btn.style.borderColor = 'rgba(56,189,248,.3)'; }
+};
+
+/* 텍스트 → HTML 변환: 줄바꿈을 <br>, •로 시작하는 줄은 그대로, **굵게** 지원 */
+function _appendixTextToHtml(text) {
+    if (!text) return '';
+    return text
+        .split('\n')
+        .map(line => {
+            line = line
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/\*\*(.+?)\*\*/g, '<strong style="color:#fff">$1</strong>');
+            return line;
+        })
+        .join('<br>\n');
+}
+
+/* HTML → 텍스트 변환 */
+function _appendixHtmlToText(html) {
+    if (!html) return '';
+    return html
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<strong[^>]*>(.*?)<\/strong>/gi, '**$1**')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>');
+}
+
+/* 간단한 저장 완료 토스트 */
+function _showAppendixToast(msg) {
+    let toast = document.getElementById('appendix-toast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'appendix-toast';
+        toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(14,165,233,.92);color:#fff;padding:10px 20px;border-radius:10px;font-size:13px;font-weight:800;z-index:9999;pointer-events:none;transition:opacity .3s';
+        document.body.appendChild(toast);
+    }
+    toast.textContent = msg;
+    toast.style.opacity = '1';
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => { toast.style.opacity = '0'; }, 2500);
 }
