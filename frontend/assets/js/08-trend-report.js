@@ -809,6 +809,7 @@ function renderTabTrend(body) {
                 if (entry.isIntersecting) {
                     if (entry.target.id === 'chartTrend') {
                         try {
+                            entry.target.innerHTML = ''; // ★ 기존 '차트 생성 중...' placeholder 제거
                             const c1 = new ApexCharts(entry.target, {
                                 ...APEX_BASE,
                                 chart: {
