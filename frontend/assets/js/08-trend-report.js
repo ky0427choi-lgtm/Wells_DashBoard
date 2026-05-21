@@ -1461,6 +1461,38 @@ function renderTabReport(body) {
             <span style="color:var(--dim)">주말 변화율 ${weS > 0 ? '+' : ''}${weS.toFixed(1)}식/일 · 평일 ${wdValsFr.length}일 / 주말 ${weVals.length}일 데이터 기반</span>
         </div>
     </div>
+    
+    <!-- ★ 신규: AI 예측 정확도 정밀 분석 박스 -->
+    ${(() => {
+        const uniqueRegions = [...new Set((window.raw_data||[]).map(r => r.region).filter(Boolean))].sort();
+        const regionOpts = uniqueRegions.map(rg => `<option value="${rg}" ${rg === regionLabel ? 'selected' : ''}>${rg}</option>`).join('');
+        return `
+        <div class="ch-panel" id="panel-accuracy" style="border:1px solid rgba(56,189,248,.3)">
+            <div class="ch-panel-title">🎯 AI 예측 정확도 정밀 분석</div>
+            <div class="ch-panel-sub">과거 예측 데이터와 실제 데이터를 비교하여 AI의 신뢰도를 측정합니다.</div>
+            
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0;font-size:11px">
+                <select id="acc-region-filt" style="background:rgba(255,255,255,.05);color:#fff;border:1px solid rgba(255,255,255,.1);padding:4px 8px;border-radius:4px" onchange="renderAccuracyBox()">
+                    <option value="ALL">전체 지역</option>
+                    ${regionOpts}
+                </select>
+                <select id="acc-meal-filt" style="background:rgba(255,255,255,.05);color:#fff;border:1px solid rgba(255,255,255,.1);padding:4px 8px;border-radius:4px" onchange="renderAccuracyBox()">
+                    <option value="합계">전체 끼니</option>
+                    <option value="조식">조식</option>
+                    <option value="중식">중식</option>
+                    <option value="석식">석식</option>
+                    <option value="야식">야식</option>
+                </select>
+                <select id="acc-type-filt" style="background:rgba(255,255,255,.05);color:#fff;border:1px solid rgba(255,255,255,.1);padding:4px 8px;border-radius:4px" onchange="renderAccuracyBox()">
+                    <option value="">통합(DI+TO)</option>
+                    <option value="DI_">일반식(D/I)</option>
+                    <option value="TO_">테이크아웃(T/O)</option>
+                </select>
+            </div>
+            <div id="acc-box-content"></div>
+        </div>
+        `;
+    })()}
     <div class="ch-panel" style="background:rgba(56,189,248,.02);border:1px dashed rgba(56,189,248,.3)">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
             <div class="ch-panel-title" style="color:var(--accent);margin-bottom:0">📌 운영 별첨 (DS 식대 지원금 안내)</div>
@@ -1578,6 +1610,9 @@ function renderTabReport(body) {
                 tooltip: { ...APEX_BASE.tooltip, y: { formatter: v => v.toLocaleString() + '식' } },
             }); c8.render(); window._apexCharts.push(c8);
         } catch (e) { }
+
+        // Render Accuracy Panel
+        setTimeout(() => { if (typeof window.renderAccuracyBox === 'function') window.renderAccuracyBox(); }, 50);
     }, 100);
 }
 
@@ -1823,3 +1858,61 @@ function _showAppendixToast(msg) {
     clearTimeout(toast._t);
     toast._t = setTimeout(() => { toast.style.opacity = '0'; }, 2500);
 }
+
+window.renderAccuracyBox = function() {
+    const regionFilt = document.getElementById('acc-region-filt').value;
+    const mealFilt = document.getElementById('acc-meal-filt').value;
+    const typeFilt = document.getElementById('acc-type-filt').value;
+    
+    let targetMk = mealFilt;
+    if (typeFilt) targetMk = typeFilt + mealFilt;
+    
+    let accSites = [...new Set((window.raw_data||[]).map(r => r.siteName))];
+    if (regionFilt !== 'ALL') {
+        const regionSites = window.raw_data.filter(r => (r.region||'') === regionFilt).map(r => r.siteName);
+        accSites = [...new Set(regionSites)];
+    }
+    
+    const agg = aggregateForecastByDate(accSites, targetMk);
+    const dates = Object.keys(agg).filter(k => agg[k].hasActual).sort();
+    
+    const box = document.getElementById('acc-box-content');
+    if (!box) return;
+    
+    if (!dates.length) {
+        box.innerHTML = `<div style="text-align:center;padding:20px;color:var(--dim);background:rgba(255,255,255,0.02);border-radius:8px">비교 가능한 과거 실측 데이터가 없습니다.</div>`;
+        return;
+    }
+    
+    let totalActual = 0;
+    let totalError = 0;
+    let totalPred = 0;
+    
+    dates.forEach(d => {
+        const row = agg[d];
+        if (row.actual > 0) {
+            totalActual += row.actual;
+            totalPred += row.pred;
+            totalError += Math.abs(row.pred - row.actual);
+        }
+    });
+    
+    const accScore = totalActual > 0 ? Math.max(0, 100 - (totalError / totalActual * 100)) : 0;
+    const accClass = accScore >= 90 ? 'success' : accScore >= 80 ? 'warning' : 'danger';
+    const accColor = accScore >= 90 ? '#34d399' : accScore >= 80 ? '#fbbf24' : '#f87171';
+    
+    box.innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div class="kpi-v2 ${accClass}" style="padding:16px;display:flex;flex-direction:column;justify-content:center;align-items:center">
+                <div class="kv2-lbl" style="font-size:11px;margin-bottom:6px">${targetMk.replace('_', ' ')} 예측 정확도</div>
+                <div class="kv2-val" style="color:${accColor};font-size:24px">${accScore.toFixed(1)}<span style="font-size:14px;opacity:.7">%</span></div>
+            </div>
+            <div style="background:rgba(255,255,255,.02);border-radius:8px;padding:12px;font-size:11px;display:flex;flex-direction:column;gap:6px">
+                <div style="display:flex;justify-content:space-between;color:var(--dim)"><span>비교 일수</span><strong style="color:#fff">${dates.length}일</strong></div>
+                <div style="display:flex;justify-content:space-between;color:var(--dim)"><span>누적 실제 식수</span><strong style="color:#fff">${totalActual.toLocaleString()}식</strong></div>
+                <div style="display:flex;justify-content:space-between;color:var(--dim)"><span>누적 예측 식수</span><strong style="color:#fff">${totalPred.toLocaleString()}식</strong></div>
+                <div style="display:flex;justify-content:space-between;color:var(--dim)"><span>평균 오차</span><strong style="color:#f87171">${Math.round(dates.length>0?totalError/dates.length:0).toLocaleString()}식 / 일</strong></div>
+            </div>
+        </div>
+    `;
+};

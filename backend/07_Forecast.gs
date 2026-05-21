@@ -203,9 +203,15 @@ function syncForecastHistoryFromPerf_(perf){
       조식: num(r['DI_조식']) + num(r['TO_조식']),
       중식: num(r['DI_중식']) + num(r['TO_중식']),
       석식: num(r['DI_석식']) + num(r['TO_석식']),
-      야식: num(r['DI_야식']) + num(r['TO_야식'])
+      야식: num(r['DI_야식']) + num(r['TO_야식']),
+      DI_조식: num(r['DI_조식']), TO_조식: num(r['TO_조식']),
+      DI_중식: num(r['DI_중식']), TO_중식: num(r['TO_중식']),
+      DI_석식: num(r['DI_석식']), TO_석식: num(r['TO_석식']),
+      DI_야식: num(r['DI_야식']), TO_야식: num(r['TO_야식'])
     };
     site.byDate[ds]['합계'] = site.byDate[ds]['조식'] + site.byDate[ds]['중식'] + site.byDate[ds]['석식'] + site.byDate[ds]['야식'];
+    site.byDate[ds]['DI_합계'] = site.byDate[ds]['DI_조식'] + site.byDate[ds]['DI_중식'] + site.byDate[ds]['DI_석식'] + site.byDate[ds]['DI_야식'];
+    site.byDate[ds]['TO_합계'] = site.byDate[ds]['TO_조식'] + site.byDate[ds]['TO_중식'] + site.byDate[ds]['TO_석식'] + site.byDate[ds]['TO_야식'];
     bySite[sn] = site;
   });
 
@@ -306,14 +312,20 @@ function reconcileForecastActuals_(sn, rg, dt, perfRow){
   if(sh.getLastRow() < 2) return;
   var colCount = headerInfo.headers.length;
   var rows = sh.getRange(2,1,sh.getLastRow()-1,colCount).getValues();
-  /* ★ 실제값 맵 (DI+TO 합산) */
+  /* ★ 실제값 맵 (DI+TO 합산 및 개별) */
   var actualMap = {
     '조식': num(perfRow[3]) + num(perfRow[7]),
     '중식': num(perfRow[4]) + num(perfRow[8]),
     '석식': num(perfRow[5]) + num(perfRow[9]),
-    '야식': num(perfRow[6]) + num(perfRow[10])
+    '야식': num(perfRow[6]) + num(perfRow[10]),
+    'DI_조식': num(perfRow[3]), 'TO_조식': num(perfRow[7]),
+    'DI_중식': num(perfRow[4]), 'TO_중식': num(perfRow[8]),
+    'DI_석식': num(perfRow[5]), 'TO_석식': num(perfRow[9]),
+    'DI_야식': num(perfRow[6]), 'TO_야식': num(perfRow[10])
   };
   actualMap['합계'] = actualMap['조식'] + actualMap['중식'] + actualMap['석식'] + actualMap['야식'];
+  actualMap['DI_합계'] = actualMap['DI_조식'] + actualMap['DI_중식'] + actualMap['DI_석식'] + actualMap['DI_야식'];
+  actualMap['TO_합계'] = actualMap['TO_조식'] + actualMap['TO_중식'] + actualMap['TO_석식'] + actualMap['TO_야식'];
   var changed = false;
   rows.forEach(function(r, idx){
     var o = rowToObjByHeaders_(r, headerInfo.headers);

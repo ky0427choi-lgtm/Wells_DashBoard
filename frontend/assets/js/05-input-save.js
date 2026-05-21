@@ -135,7 +135,10 @@ function aggregateForecastByDate(siteNames, mk) {
     const memoKey = `${keySites}__${mk}`;
     if (_gasForecastAggMemo[memoKey]) return _gasForecastAggMemo[memoKey];
     const set = new Set((siteNames || []).filter(Boolean));
-    const meals = mk === '합계' ? ['조식', '중식', '석식', '야식'] : [mk];
+    let meals = [mk];
+    if (mk === '합계') meals = ['조식', '중식', '석식', '야식'];
+    else if (mk === 'DI_합계') meals = ['DI_조식', 'DI_중식', 'DI_석식', 'DI_야식'];
+    else if (mk === 'TO_합계') meals = ['TO_조식', 'TO_중식', 'TO_석식', 'TO_야식'];
     const rows = (_gasForecastCache || []).filter(r => r && r.targetDate && (!set.size || set.has(r.siteName)) && meals.includes(r.meal));
 
     const latestByKey = {};

@@ -17,7 +17,7 @@ function incrementGlobalVersion() {
 }
 const FORECAST_SHEET = "AI예측이력";
 const FORECAST_HEADERS = ["생성일시","기준일","예측대상일","지역","사업장명","끼니","예측값","실제값","오차율(%)","정확도(%)","상태","비고"];
-const FORECAST_MEALS = ["조식","중식","석식","야식","합계"];
+const FORECAST_MEALS = ["조식","중식","석식","야식","합계", "DI_조식", "TO_조식", "DI_중식", "TO_중식", "DI_석식", "TO_석식", "DI_야식", "TO_야식"];
 /* ★ v4.1: 리포트캐시 시트 */
 const REPORT_CACHE_SHEET = "리포트캐시";
 const REPORT_CACHE_TTL = 300; // 캐시 유효시간 (초) = 5분
