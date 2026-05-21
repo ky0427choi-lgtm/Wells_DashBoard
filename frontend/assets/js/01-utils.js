@@ -33,14 +33,8 @@ window._momCache = {};
 
 function buildMomCache(siteDataArr) {
     const cache = {};
-    /* ★ 속도 우선: _gasPerfCache(이미 메모리) → getRec()(localStorage) 순으로 폴백 */
     const useCache = window._gasPerfCache && window._gasPerfCache.length > 0;
-    const now = new Date();
-    const thisYM = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-    const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const prevYM = `${prevDate.getFullYear()}-${String(prevDate.getMonth()+1).padStart(2,'0')}`;
-
-    /* _gasPerfCache 우선 사용 (메모리) — 없으면 getRec() (localStorage) */
+    
     const allRecs = (useCache ? window._gasPerfCache : getRec()).filter(r => r.siteName && r.date);
     const bysite = {};
     allRecs.forEach(r => {
@@ -53,7 +47,6 @@ function buildMomCache(siteDataArr) {
         return vals.length ? Math.round(vals.reduce((a,b)=>a+b,0) / vals.length) : 0;
     };
 
-    /* 사업장 메타 배열로 사업장명 목록 확보 */
     const siteNames = Array.isArray(siteDataArr) ? siteDataArr.map(d => d["사업장명"]) : Object.keys(bysite);
 
     siteNames.forEach(sn => {
@@ -62,9 +55,18 @@ function buildMomCache(siteDataArr) {
         const serverAvg = n(serverEntry["금월_평균중식"]);
 
         if (siteRecs.length === 0) {
-            cache[sn] = { mAvg: serverAvg, mMom: 0, momLabel: '전월대비', momSub: null };
+            cache[sn] = { mAvg: serverAvg, mMom: 0, momLabel: '전월대비', momSub: '(데이터 없음)' };
             return;
         }
+
+        /* 1. 최신 데이터 기준월(thisYM)과 그 전달(prevYM) 동적 산출 */
+        const sortedRecs = [...siteRecs].sort((a,b) => a.date > b.date ? -1 : 1);
+        const thisYM = sortedRecs[0].date.slice(0,7);
+        
+        const [y, m] = thisYM.split('-').map(Number);
+        let pY = y, pM = m - 1;
+        if (pM === 0) { pY--; pM = 12; }
+        const prevYM = `${pY}-${String(pM).padStart(2,'0')}`;
 
         const thisMonthRecs = siteRecs.filter(r => r.date.startsWith(thisYM));
         const prevMonthRecs = siteRecs.filter(r => r.date.startsWith(prevYM));
@@ -77,16 +79,17 @@ function buildMomCache(siteDataArr) {
         let momSub = null;
 
         if (baseAvg === 0) {
-            /* 전월 데이터 없음 → 가장 오래된 달 탐색 */
-            const sorted = [...siteRecs].sort((a,b) => a.date < b.date ? -1 : 1);
-            const oldestYM = sorted[0].date.slice(0,7);
-            if (oldestYM !== thisYM) {
-                const oldestRecs = siteRecs.filter(r => r.date.startsWith(oldestYM));
-                baseAvg = calcAvg(oldestRecs);
+            /* 전월 데이터 없음 → thisYM보다 오래된 가장 최근 달 탐색 */
+            const olderRecs = sortedRecs.filter(r => r.date < thisYM + '-00');
+            if (olderRecs.length > 0) {
+                const oldestYM = olderRecs[0].date.slice(0,7);
+                const oldestRecsFiltered = siteRecs.filter(r => r.date.startsWith(oldestYM));
+                baseAvg = calcAvg(oldestRecsFiltered);
                 momLabel = `${oldestYM.slice(5)}월 대비`;
-                momSub = '(기준 부족)';
-            } else if (siteRecs.length === 1) {
-                cache[sn] = { mAvg, mMom: 0, momLabel: '전월대비', momSub: '(데이터 1건)' };
+                momSub = '(이전 기준)';
+            } else {
+                /* 비교할 과거 데이터가 전혀 없는 경우 */
+                cache[sn] = { mAvg, mMom: 0, momLabel: '전월대비', momSub: '(비교데이터 없음)' };
                 return;
             }
         }
