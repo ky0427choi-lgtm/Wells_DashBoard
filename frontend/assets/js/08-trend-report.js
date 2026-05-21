@@ -1448,7 +1448,8 @@ function renderTabReport(body) {
                             const fw = d.isToday ? '900' : '700';
                             const bg = d.isToday ? 'rgba(251,191,36,0.1)' : 'transparent';
                             const badge = d.ht.type !== 'workday' ? `<br><span style="font-size:8.5px;opacity:0.6">${d.ht.label||'휴일'}</span>` : '';
-                            return `<td style="color:${cc};font-weight:${fw};background:${bg};padding:8px 4px;line-height:1.4">${d.val.toLocaleString()}식${badge}</td>`;
+                            const valText = d.val > 0 ? `${d.val.toLocaleString()}식` : `<span style="font-size:9px;opacity:0.7;white-space:nowrap">비교데이터 없음</span>`;
+                            return `<td style="color:${cc};font-weight:${fw};background:${bg};padding:8px 4px;line-height:1.4">${valText}${badge}</td>`;
                         }).join('')}
                     </tr>`;
                 }).join('')}
