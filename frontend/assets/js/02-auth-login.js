@@ -112,11 +112,17 @@ window.doLogout = function () {
 window.doLogin = async function () {
     const err = document.getElementById("login-error");
     if (err) err.style.display = "none";
-    const id = document.getElementById("loginId").value.trim(), pw = document.getElementById("loginPw").value, btn = document.querySelector(".login-btn");
-    if (!id || !pw) { if (err) { err.innerText = "아이디와 비밀번호를 입력하세요."; err.style.display = "block"; } return; }
-    btn.innerText = "접속 중..."; btn.disabled = true;
+    const id = document.getElementById("loginId").value.trim(),
+          pw = document.getElementById("loginPw").value,
+          btn = document.querySelector(".login-btn");
+    if (!id || !pw) {
+        if (err) { err.innerText = "아이디와 비밀번호를 입력하세요."; err.style.display = "block"; }
+        return;
+    }
+    btn.innerText = "데이터 동기화 중..."; btn.disabled = true;
     try {
-        const r = await fetch(API + "?type=login&userId=" + encodeURIComponent(id) + "&pw=" + encodeURIComponent(pw), { redirect: "follow" });
+        const r = await fetch(API + "?type=login&userId=" + encodeURIComponent(id)
+                  + "&pw=" + encodeURIComponent(pw), { redirect: "follow" });
         const t = await r.text();
         if (t.startsWith("Valid")) {
             const parts = t.split("|");
@@ -124,13 +130,51 @@ window.doLogin = async function () {
             USER_ROLE = parts[2] || "C";
             USER_REGION = parts[3] || "";
             USER_SITE = parts[4] || "";
+            
+            // ★ 백엔드에서 넘겨준 필터링된 데이터를 즉시 적용
+            // 단, 현재 GAS가 구버전일 수도 있으므로 데이터가 없으면 기존처럼 동작
+            try {
+                // GAS에서 JSONP 형식의 perf 데이터를 반환하는지 체크
+                const resObj = JSON.parse(t.substring(t.indexOf("{")));
+                if (resObj.status === "success" && resObj.perf) {
+                    _applyPerfData(resObj);
+                    await _dbPut('perf_json', resObj);
+                    localStorage.setItem('global_perf_version', String(resObj.version || "0"));
+                    window._gasPerfLoaded = true;
+                }
+            } catch(e) {}
+
             document.getElementById("login-overlay").style.display = "none";
             applyRoleUI();
             init();
             setTimeout(() => initSecurity(id), 500);
+        } else if (t.startsWith("Locked")) {
+            // 계정 잠금 안내
+            const msg = t.split("|")[1] || "계정이 잠금 처리되었습니다. 관리자에게 문의하세요.";
+            if (err) { err.innerText = "🔒 " + msg; err.style.display = "block"; }
+        } else if (t.startsWith("Inactive")) {
+            // 비활성 계정 안내
+            const msg = t.split("|")[1] || "비활성 계정입니다.";
+            if (err) { err.innerText = msg; err.style.display = "block"; }
         } else {
-            if (err) { err.innerText = "로그인 정보가 올바르지 않습니다."; err.style.display = "block"; }
+            // 일반 로그인 실패 (비밀번호 오류 등) — R-3 사용자 안내 강화
+            const parts = t.split("|");
+            const msg = parts[1] || "로그인 정보가 올바르지 않습니다.";
+            // 실패 횟수가 포함된 경우 잔여 횟수 경고 표시
+            const countMatch = msg.match(/(\d+)\/(\d+)/);
+            let displayMsg = msg;
+            if (countMatch) {
+                const current = parseInt(countMatch[1]);
+                const max = parseInt(countMatch[2]);
+                const remaining = max - current;
+                if (remaining <= 2) {
+                    displayMsg = "⚠️ " + msg + "\n" + remaining + "회 추가 실패 시 계정이 잠금됩니다.";
+                }
+            }
+            if (err) { err.innerText = displayMsg; err.style.display = "block"; }
         }
-    } catch (e) { if (err) { err.innerText = "통신 오류: " + e.message; err.style.display = "block"; } }
+    } catch (e) {
+        if (err) { err.innerText = "통신 오류: " + e.message; err.style.display = "block"; }
+    }
     btn.innerText = "로그인"; btn.disabled = false;
 };
