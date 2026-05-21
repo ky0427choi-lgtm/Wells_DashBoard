@@ -1341,37 +1341,46 @@ function renderTabReport(body) {
     const wdAvg = wdValsFr.length ? wdValsFr.reduce((a, b) => a + b, 0) / wdValsFr.length : 0;
     const weAvg = weVals.length ? weVals.reduce((a, b) => a + b, 0) / weVals.length : wdAvg * 0.4;
     const lastDate = new Date(dates[dates.length - 1] + 'T00:00:00');
-    /* ★ AI 주간 단위 예측 (Calendar Week - 월~일) */
+    /* ★ AI 주간 단위 예측 (Calendar Week - 월~일) - 오늘 날짜(System) 기준 28일치 */
+    const sysToday = new Date();
+    const todayStr = _toYMD(sysToday);
+    
     const getMon = d => {
         const nd = new Date(d + 'T00:00:00');
         const day = nd.getDay(), diff = nd.getDate() - day + (day === 0 ? -6 : 1);
         return new Date(nd.setDate(diff));
     };
-    const todayStr = dates[dates.length - 1];
-    const thisMon = getMon(todayStr);
+    const thisMon = getMon(todayStr); // 금주 월요일
     const weeksData = [];
+    const DOW_NAMES = ['월', '화', '수', '목', '금', '토', '일'];
+    
     for (let i = -1; i <= 2; i++) {
         const wMon = new Date(thisMon); wMon.setDate(wMon.getDate() + i * 7);
-        const wDays = [];
+        const dailyData = [];
+        let wdSum = 0, wdCount = 0;
+        
         for (let j = 0; j < 7; j++) {
             const cur = new Date(wMon); cur.setDate(cur.getDate() + j);
-            wDays.push(_toYMD(cur));
-        }
-        let sum = 0, wdSum = 0, wdCount = 0;
-        wDays.forEach(ds => {
+            const ds = _toYMD(cur);
+            const isPast = ds < todayStr;
+            const isToday = ds === todayStr;
+            const ht = getHolidayType(ds);
+            
             let val = 0;
-            if (ds <= todayStr) {
+            if (isPast) {
                 val = getMkVal(ds) || 0;
             } else {
                 const storedPred = getForecastValueForDate(selectedSites, mk, ds);
                 val = storedPred > 0 ? storedPred : wmaForecast(dates, getMkVal, ds);
             }
-            sum += val;
-            if (getHolidayType(ds).type === 'workday') { wdSum += val; wdCount++; }
-        });
-        const label = i === -1 ? '전 주차 (W-1)' : i === 0 ? '금주 (W0)' : i === 1 ? '차주 (W+1)' : '차차주 (W+2)';
+            
+            if (ht.type === 'workday') { wdSum += val; wdCount++; }
+            dailyData.push({ ds, val, ht, isPast, isToday });
+        }
+        
+        const label = i === -1 ? 'W-1' : i === 0 ? 'W0(금주)' : i === 1 ? 'W+1' : 'W+2';
         const avg = wdCount > 0 ? Math.round(wdSum / wdCount) : 0;
-        weeksData.push({ label, i, sum, avg, days: wDays });
+        weeksData.push({ label, i, avg, dailyData });
     }
     const storedAccRpt = getStoredAccuracy(selectedSites, mk);
     const confText = storedAccRpt != null ? `정확도 ${storedAccRpt}%` : (wdValsFr.length >= 10 ? '높음 ✅' : wdValsFr.length >= 5 ? '중간 ⚠️' : '낮음 ❌');
@@ -1419,25 +1428,31 @@ function renderTabReport(body) {
         </div>
     </div>
     <div class="ch-panel">
-        <div class="ch-panel-title">🔮 AI 주간 예측 (Calendar Week) <span style="font-size:9px;color:var(--dim);font-weight:400">신뢰도: ${confText} · 금주 기준 비교</span></div>
+        <div class="ch-panel-title">🔮 AI 요일별 예측 (Calendar Week) <span style="font-size:9px;color:var(--dim);font-weight:400">신뢰도: ${confText} · ${todayStr} 기준</span></div>
         <div id="chartForecast" class="ch-apex"></div>
         <div style="overflow-x:auto;margin-top:14px">
-        <table class="week-cmp-tbl">
-            <thead><tr><th style="text-align:left">주차</th><th>기간 (월~일)</th><th>추정 ${mk}<br><span style="font-size:9px;color:var(--dim);font-weight:400">(주간합계)</span></th><th>평일 일평균<br><span style="font-size:9px;color:var(--dim);font-weight:400">기준(금주) 대비</span></th></tr></thead>
-            <tbody>${weeksData.map((w, idx) => {
-        const isPast = w.i < 0;
-        const isCurrent = w.i === 0;
-        const refAvg = weeksData.find(wx => wx.i === 0).avg;
-        const chg = (!isCurrent && refAvg > 0) ? ((w.avg - refAvg) / refAvg * 100).toFixed(1) : 0;
-        const cc = chg > 0 ? '#34d399' : chg < 0 ? '#f87171' : '#fbbf24';
-        
-        const badge = isCurrent ? `<span style="background:rgba(251,191,36,.15);color:#fbbf24;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:800">기준점</span>` : (isPast ? `<span style="background:rgba(148,163,184,.15);color:#94a3b8;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:800">과거실적</span>` : `<span style="background:rgba(56,189,248,.15);color:#38bdf8;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:800">AI예측</span>`);
-        
-        const trStyle = isCurrent ? ' style="background:rgba(255,255,255,.03)"' : '';
-        const chgCol = isCurrent ? `<td style="color:var(--dim)">-</td>` : `<td style="color:${cc};font-weight:800">${w.avg.toLocaleString()}식 <span style="font-size:10px">(${chg > 0 ? '+' : ''}${chg}%)</span></td>`;
-        
-        return `<tr${trStyle}><td>${w.label}<br>${badge}</td><td style="font-size:11px;color:var(--dim)">${w.days[0].slice(5)} ~ ${w.days[6].slice(5)}</td><td style="color:var(--accent3);font-weight:900">${w.sum.toLocaleString()}식</td>${chgCol}</tr>`;
-    }).join('')}</tbody>
+        <table class="week-cmp-tbl" style="min-width:100%;text-align:center;font-size:11px">
+            <thead>
+                <tr>
+                    <th style="text-align:center;padding:10px 4px">요일</th>
+                    ${weeksData.map(w => `<th style="text-align:center;padding:10px 4px;${w.i===0?'color:#fbbf24':''}">${w.label}</th>`).join('')}
+                </tr>
+            </thead>
+            <tbody>
+                ${DOW_NAMES.map((dow, j) => {
+                    return `<tr>
+                        <td style="font-weight:900;color:var(--dim);padding:8px 4px">${dow}</td>
+                        ${weeksData.map(w => {
+                            const d = w.dailyData[j];
+                            const cc = d.isPast ? 'var(--dim)' : (d.isToday ? '#fbbf24' : '#38bdf8');
+                            const fw = d.isToday ? '900' : '700';
+                            const bg = d.isToday ? 'rgba(251,191,36,0.1)' : 'transparent';
+                            const badge = d.ht.type !== 'workday' ? `<br><span style="font-size:8.5px;opacity:0.6">${d.ht.label||'휴일'}</span>` : '';
+                            return `<td style="color:${cc};font-weight:${fw};background:${bg};padding:8px 4px;line-height:1.4">${d.val.toLocaleString()}식${badge}</td>`;
+                        }).join('')}
+                    </tr>`;
+                }).join('')}
+            </tbody>
         </table></div>
         <div style="margin-top:12px;padding:12px;background:rgba(167,139,250,.06);border:1px solid rgba(167,139,250,.15);border-radius:10px;font-size:11px;line-height:1.9">
             <strong style="color:var(--accent3)">📋 종합 진단 · ${regionLabel}</strong><br>
@@ -1545,16 +1560,20 @@ function renderTabReport(body) {
         } catch (e) { }
 
         try {
+            const seriesData = weeksData.map(w => ({
+                name: w.label,
+                data: w.dailyData.map(d => d.val)
+            }));
             const c8 = new ApexCharts(document.getElementById('chartForecast'), {
                 ...APEX_BASE,
-                chart: { ...APEX_BASE.chart, type: 'bar', height: 220 },
-                series: [{ name: `평일 일평균`, data: weeksData.map(w => w.avg) }],
-                colors: weeksData.map(w => w.i === 0 ? '#fbbf24' : (w.i < 0 ? '#94a3b8' : '#38bdf8')),
-                plotOptions: { bar: { borderRadius: 4, distributed: true, columnWidth: '50%' } },
-                xaxis: { ...APEX_BASE.xaxis, categories: weeksData.map(w => w.label.split(' ')[0]) },
+                chart: { ...APEX_BASE.chart, type: 'bar', height: 240, stacked: false },
+                series: seriesData,
+                colors: ['#64748b', '#fbbf24', '#38bdf8', '#818cf8'],
+                plotOptions: { bar: { borderRadius: 2, columnWidth: '60%' } },
+                xaxis: { ...APEX_BASE.xaxis, categories: DOW_NAMES },
                 yaxis: { ...APEX_BASE.yaxis, min: 0 },
-                dataLabels: { enabled: true, formatter: v => v.toLocaleString() + '식', style: { fontSize: '11px', fontWeight: 800, colors: ['#fff'] } },
-                legend: { show: false },
+                dataLabels: { enabled: false },
+                legend: { show: true, position: 'top', labels: { colors: '#94a3b8' } },
                 tooltip: { ...APEX_BASE.tooltip, y: { formatter: v => v.toLocaleString() + '식' } },
             }); c8.render(); window._apexCharts.push(c8);
         } catch (e) { }
