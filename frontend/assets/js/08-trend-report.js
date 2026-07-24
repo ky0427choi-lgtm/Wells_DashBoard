@@ -310,6 +310,7 @@ function loadTrendSummary() {
 
 function renderTrendReport() {
     const body = document.getElementById("trend-body");
+    window._dailyRenderToken = (window._dailyRenderToken || 0) + 1;
     
     // 0. 사전 연산된 통계 캐시 로드 시도
     if (!window._trendSummaryCache && !window._trendSummaryLoading) {
@@ -1007,6 +1008,7 @@ function renderTabTrend(body) {
 /* ─────────────── TAB 2: 요일별 분석 ─────────────── */
 function renderTabDaily(body) {
     const { filtRecs, dates, byDate, byDateDI, byDateTO, mk, mkColor, normalDates, wdDates } = window._trCtx;
+    const dailyRenderToken = window._dailyRenderToken;
     const sfilt = window._trendSiteFilter || [];
     const DAYS = ['월', '화', '수', '목', '금', '토', '일'];
     const DOW = { 0: '일', 1: '월', 2: '화', 3: '수', 4: '목', 5: '금', 6: '토' };
@@ -1150,6 +1152,8 @@ function renderTabDaily(body) {
     </div>`;
 
     setTimeout(() => {
+        if (dailyRenderToken !== window._dailyRenderToken) return;
+        const dailyCharts = [];
         const maxWd = Math.max(...wdData);
         try {
             const c3 = new ApexCharts(document.getElementById('chartDowWd'), {
@@ -1183,7 +1187,7 @@ function renderTabDaily(body) {
                 states: { hover: { filter: { type: 'none' } }, active: { filter: { type: 'none' } } },
                 legend: { show: false },
                 tooltip: { ...APEX_BASE.tooltip, y: { formatter: v => v.toLocaleString() + '식' } },
-            }); c3.render(); window._apexCharts.push(c3);
+            }); dailyCharts.push(c3);
         } catch (e) { }
         try {
             const c4 = new ApexCharts(document.getElementById('chartDowWe'), {
@@ -1200,7 +1204,7 @@ function renderTabDaily(body) {
                 states: { hover: { filter: { type: 'none' } }, active: { filter: { type: 'none' } } },
                 legend: { show: false },
                 tooltip: { ...APEX_BASE.tooltip, y: { formatter: v => v.toLocaleString() + '식 (주말)' } },
-            }); c4.render(); window._apexCharts.push(c4);
+            }); dailyCharts.push(c4);
         } catch (e) { }
         try {
             const c5 = new ApexCharts(document.getElementById('chartRadar'), {
@@ -1213,8 +1217,27 @@ function renderTabDaily(body) {
                 yaxis: { show: false },
                 legend: { ...APEX_BASE.legend, position: 'top' },
                 tooltip: { ...APEX_BASE.tooltip, y: { formatter: v => v.toLocaleString() + '식' } },
-            }); c5.render(); window._apexCharts.push(c5);
+            }); dailyCharts.push(c5);
         } catch (e) { }
+
+        (async () => {
+            for (const chart of dailyCharts) {
+                if (dailyRenderToken !== window._dailyRenderToken) {
+                    try { chart.destroy(); } catch (e) { }
+                    return;
+                }
+                await new Promise(resolve => requestAnimationFrame(resolve));
+                try {
+                    await chart.render();
+                    if (dailyRenderToken === window._dailyRenderToken) {
+                        window._apexCharts.push(chart);
+                    } else {
+                        chart.destroy();
+                        return;
+                    }
+                } catch (e) { }
+            }
+        })();
     }, 100);
 }
 
