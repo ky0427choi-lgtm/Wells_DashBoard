@@ -394,17 +394,15 @@ function renderTrendReport() {
 
     // 날짜별 집계 (끼니별)
     const byDate = { 조식: {}, 중식: {}, 석식: {}, 야식: {} };
-    const byDateDI = isMobileTrendView() ? { 조식: {}, 중식: {}, 석식: {}, 야식: {} } : null;
-    const byDateTO = isMobileTrendView() ? { 조식: {}, 중식: {}, 석식: {}, 야식: {} } : null;
+    const byDateDI = { 조식: {}, 중식: {}, 석식: {}, 야식: {} };
+    const byDateTO = { 조식: {}, 중식: {}, 석식: {}, 야식: {} };
     filtRecs.forEach(r => {
         ['조식', '중식', '석식', '야식'].forEach(m => {
             const di = n(r['DI_' + m]);
             const to = n(r['TO_' + m]);
             byDate[m][r.date] = (byDate[m][r.date] || 0) + di + to;
-            if (byDateDI) {
-                byDateDI[m][r.date] = (byDateDI[m][r.date] || 0) + di;
-                byDateTO[m][r.date] = (byDateTO[m][r.date] || 0) + to;
-            }
+            byDateDI[m][r.date] = (byDateDI[m][r.date] || 0) + di;
+            byDateTO[m][r.date] = (byDateTO[m][r.date] || 0) + to;
         });
     });
 
@@ -1013,84 +1011,86 @@ function renderTabDaily(body) {
     const DAYS = ['월', '화', '수', '목', '금', '토', '일'];
     const DOW = { 0: '일', 1: '월', 2: '화', 3: '수', 4: '목', 5: '금', 6: '토' };
     
-    // 요일별 실제 D/I 및 T/O 수집용 리스트
-    const daySums = {};
-    const dayDICounts = {};
-    const dayTOCounts = {};
-    DAYS.slice(0, 5).forEach(d => {
-        daySums[d] = [];
-        dayDICounts[d] = [];
-        dayTOCounts[d] = [];
+    // 날짜별 데이터를 한 번만 순회해 모든 요일 집계를 동시에 만든다.
+    // 전체 지역에서도 날짜/요일/끼니마다 원본 배열을 반복 검색하지 않도록 한다.
+    const MEALS = ['조식', '중식', '석식', '야식'];
+    const RADAR_MEALS = ['조식', '중식', '석식'];
+    const weekdaySet = new Set(DAYS.slice(0, 5));
+    const selectedStats = {};
+    const diToStats = {};
+    const radarStats = {};
+    DAYS.forEach(day => {
+        selectedStats[day] = { sum: 0, count: 0 };
+        diToStats[day] = { total: 0, di: 0, to: 0, count: 0 };
+        radarStats[day] = {};
+        RADAR_MEALS.forEach(meal => {
+            radarStats[day][meal] = { sum: 0, count: 0 };
+        });
     });
-    
-    const n = v => isNaN(Number(v)) ? 0 : Number(v);
 
-    dates.forEach(d => {
-        const dow = DOW[new Date(d + 'T00:00:00').getDay()];
-        if (DAYS.slice(0, 5).includes(dow)) {
-            let diVal = 0, toVal = 0;
-            const mkKey = mk === '합계' ? '중식' : mk; // 합계인 경우 전체 식수 합산
-            if (byDateDI && byDateTO) {
-                if (mk === '합계') {
-                    ['조식', '중식', '석식', '야식'].forEach(m => {
-                        diVal += byDateDI[m][d] || 0;
-                        toVal += byDateTO[m][d] || 0;
-                    });
-                } else {
-                    diVal = byDateDI[mkKey]?.[d] || 0;
-                    toVal = byDateTO[mkKey]?.[d] || 0;
-                }
-            } else {
-                filtRecs.filter(r => r.date === d).forEach(r => {
-                    if (mk === '합계') {
-                        ['조식', '중식', '석식', '야식'].forEach(m => {
-                            diVal += n(r['DI_' + m]);
-                            toVal += n(r['TO_' + m]);
-                        });
-                    } else {
-                        diVal += n(r['DI_' + mkKey]);
-                        toVal += n(r['TO_' + mkKey]);
-                    }
-                });
+    dates.forEach(date => {
+        const dow = DOW[new Date(date + 'T00:00:00').getDay()];
+        let selectedValue = 0;
+        if (mk === '합계') {
+            MEALS.forEach(meal => { selectedValue += byDate[meal]?.[date] || 0; });
+        } else {
+            selectedValue = byDate[mk]?.[date] || 0;
+        }
+        if (selectedValue > 0) {
+            selectedStats[dow].sum += selectedValue;
+            selectedStats[dow].count++;
+        }
+
+        RADAR_MEALS.forEach(meal => {
+            const value = byDate[meal]?.[date] || 0;
+            if (value > 0) {
+                radarStats[dow][meal].sum += value;
+                radarStats[dow][meal].count++;
             }
-            const totalVal = diVal + toVal;
-            if (totalVal > 0) {
-                daySums[dow].push(totalVal);
-                dayDICounts[dow].push(diVal);
-                dayTOCounts[dow].push(toVal);
-            }
+        });
+
+        if (!weekdaySet.has(dow)) return;
+        let diValue = 0;
+        let toValue = 0;
+        if (mk === '합계') {
+            MEALS.forEach(meal => {
+                diValue += byDateDI?.[meal]?.[date] || 0;
+                toValue += byDateTO?.[meal]?.[date] || 0;
+            });
+        } else {
+            diValue = byDateDI?.[mk]?.[date] || 0;
+            toValue = byDateTO?.[mk]?.[date] || 0;
+        }
+        if (diValue + toValue > 0) {
+            diToStats[dow].total += diValue + toValue;
+            diToStats[dow].di += diValue;
+            diToStats[dow].to += toValue;
+            diToStats[dow].count++;
         }
     });
 
+    const statAvg = stat => stat.count ? Math.round(stat.sum / stat.count) : 0;
     const dayAvgTotal = {};
     const dayAvgDI = {};
     const dayAvgTO = {};
-    DAYS.slice(0, 5).forEach(d => {
-        const totals = daySums[d];
-        const dis = dayDICounts[d];
-        const tos = dayTOCounts[d];
-        dayAvgTotal[d] = totals.length ? Math.round(totals.reduce((a,b)=>a+b,0)/totals.length) : 0;
-        dayAvgDI[d] = dis.length ? Math.round(dis.reduce((a,b)=>a+b,0)/dis.length) : 0;
-        dayAvgTO[d] = tos.length ? Math.round(tos.reduce((a,b)=>a+b,0)/tos.length) : 0;
+    DAYS.slice(0, 5).forEach(day => {
+        const stat = diToStats[day];
+        dayAvgTotal[day] = stat.count ? Math.round(stat.total / stat.count) : 0;
+        dayAvgDI[day] = stat.count ? Math.round(stat.di / stat.count) : 0;
+        dayAvgTO[day] = stat.count ? Math.round(stat.to / stat.count) : 0;
     });
 
-    // wdData는 월~금 평균
-    const wdData = DAYS.slice(0, 5).map(d => dayAvgTotal[d]);
-
-    // 기존 호환성용 dayMap 및 weData 계산
-    const dayMap = {}; DAYS.forEach(d => { dayMap[d] = []; });
-    dates.forEach(d => {
-        const dow = DOW[new Date(d + 'T00:00:00').getDay()];
-        const v = mk === '합계' ? ['조식', '중식', '석식', '야식'].reduce((s, m) => s + (byDate[m]?.[d] || 0), 0) : (byDate[mk]?.[d] || 0);
-        if (v > 0) dayMap[dow].push(v);
-    });
-    const avg = arr => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
-    const weData = DAYS.slice(5).map(d => avg(dayMap[d]));
+    // wdData는 월~금 DI/TO 평균, 주말은 기존 선택 끼니 평균을 유지한다.
+    const wdData = DAYS.slice(0, 5).map(day => dayAvgTotal[day]);
+    const weData = DAYS.slice(5).map(day => statAvg(selectedStats[day]));
 
     const wdAvgLine = Math.round(wdData.filter(v => v > 0).reduce((a, b) => a + b, 0) / (wdData.filter(v => v > 0).length || 1));
 
-    // 끼니별 요일 데이터 (레이더용)
-    const radarData = DAYS.map(d => ({ day: d, ...Object.fromEntries(['조식', '중식', '석식'].map(m => [m, avg(dates.filter(d2 => DOW[new Date(d2 + 'T00:00:00').getDay()] === d).map(d2 => byDate[m]?.[d2] || 0).filter(v => v > 0))])) }));
+    // 끼니별 요일 데이터 (레이더용)도 위 단일 순회 결과를 재사용한다.
+    const radarData = DAYS.map(day => ({
+        day,
+        ...Object.fromEntries(RADAR_MEALS.map(meal => [meal, statAvg(radarStats[day][meal])]))
+    }));
 
     const maxVal = Math.max(...wdData);
     const minVal = Math.min(...wdData.filter(v => v > 0));
