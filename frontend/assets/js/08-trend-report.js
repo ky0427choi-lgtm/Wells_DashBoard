@@ -18,6 +18,11 @@ var APEX_BASE = {
 };
 var C_MEALS = { 조식: '#f59e42', 중식: '#38bdf8', 석식: '#a78bfa', 합계: '#34d399' };
 
+/* Mobile-only performance guard. Visual output and chart animation stay unchanged. */
+function isMobileTrendView() {
+    return window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
+}
+
 function linReg(ys) {
     const nn = ys.length; if (nn < 2) return { slope: 0, intercept: ys[0] || 0 };
     const xm = (nn - 1) / 2, ym = ys.reduce((a, b) => a + b, 0) / nn;
@@ -388,9 +393,17 @@ function renderTrendReport() {
 
     // 날짜별 집계 (끼니별)
     const byDate = { 조식: {}, 중식: {}, 석식: {}, 야식: {} };
+    const byDateDI = isMobileTrendView() ? { 조식: {}, 중식: {}, 석식: {}, 야식: {} } : null;
+    const byDateTO = isMobileTrendView() ? { 조식: {}, 중식: {}, 석식: {}, 야식: {} } : null;
     filtRecs.forEach(r => {
         ['조식', '중식', '석식', '야식'].forEach(m => {
-            byDate[m][r.date] = (byDate[m][r.date] || 0) + n(r['DI_' + m]) + n(r['TO_' + m]);
+            const di = n(r['DI_' + m]);
+            const to = n(r['TO_' + m]);
+            byDate[m][r.date] = (byDate[m][r.date] || 0) + di + to;
+            if (byDateDI) {
+                byDateDI[m][r.date] = (byDateDI[m][r.date] || 0) + di;
+                byDateTO[m][r.date] = (byDateTO[m][r.date] || 0) + to;
+            }
         });
     });
 
@@ -448,7 +461,7 @@ function renderTrendReport() {
     // ★ v4.0: 공유 컨텍스트 저장 (patternResult 추가)
     window._trCtx = {
         filtRecs, dates, sites: activeSites, wdDates, lowDates, weDates, normalDates, normalDates30,
-        byDate, normAvg, lowAvg, dropPct, mk, mkColor, getMkVal, normVals, regionLabel, selectedSites,
+        byDate, byDateDI, byDateTO, normAvg, lowAvg, dropPct, mk, mkColor, getMkVal, normVals, regionLabel, selectedSites,
         prevAvg, diffMoM
     };
     /* patternResult는 renderTabTrend 내부에서 계산되어 지역 스코프에 존재 */
@@ -470,7 +483,15 @@ window.setMealKey = function (mk) {
         b.style.color = active ? (MK_COLOR[b.dataset.mk]) : 'var(--muted)';
         b.style.borderColor = active ? (MK_COLOR[b.dataset.mk] + '88') : 'var(--border)';
     });
-    renderTrendReport();
+    if (isMobileTrendView()) {
+        if (window._trendMealRenderFrame) cancelAnimationFrame(window._trendMealRenderFrame);
+        window._trendMealRenderFrame = requestAnimationFrame(() => {
+            window._trendMealRenderFrame = null;
+            renderTrendReport();
+        });
+    } else {
+        renderTrendReport();
+    }
 };
 window.toggleTrendSite = function (site) {
     const arr = window._trendSiteFilter || [];
@@ -985,7 +1006,7 @@ function renderTabTrend(body) {
 
 /* ─────────────── TAB 2: 요일별 분석 ─────────────── */
 function renderTabDaily(body) {
-    const { filtRecs, dates, byDate, mk, mkColor, normalDates, wdDates } = window._trCtx;
+    const { filtRecs, dates, byDate, byDateDI, byDateTO, mk, mkColor, normalDates, wdDates } = window._trCtx;
     const sfilt = window._trendSiteFilter || [];
     const DAYS = ['월', '화', '수', '목', '금', '토', '일'];
     const DOW = { 0: '일', 1: '월', 2: '화', 3: '수', 4: '목', 5: '금', 6: '토' };
@@ -1007,17 +1028,29 @@ function renderTabDaily(body) {
         if (DAYS.slice(0, 5).includes(dow)) {
             let diVal = 0, toVal = 0;
             const mkKey = mk === '합계' ? '중식' : mk; // 합계인 경우 전체 식수 합산
-            filtRecs.filter(r => r.date === d).forEach(r => {
+            if (byDateDI && byDateTO) {
                 if (mk === '합계') {
                     ['조식', '중식', '석식', '야식'].forEach(m => {
-                        diVal += n(r['DI_' + m]);
-                        toVal += n(r['TO_' + m]);
+                        diVal += byDateDI[m][d] || 0;
+                        toVal += byDateTO[m][d] || 0;
                     });
                 } else {
-                    diVal += n(r['DI_' + mkKey]);
-                    toVal += n(r['TO_' + mkKey]);
+                    diVal = byDateDI[mkKey]?.[d] || 0;
+                    toVal = byDateTO[mkKey]?.[d] || 0;
                 }
-            });
+            } else {
+                filtRecs.filter(r => r.date === d).forEach(r => {
+                    if (mk === '합계') {
+                        ['조식', '중식', '석식', '야식'].forEach(m => {
+                            diVal += n(r['DI_' + m]);
+                            toVal += n(r['TO_' + m]);
+                        });
+                    } else {
+                        diVal += n(r['DI_' + mkKey]);
+                        toVal += n(r['TO_' + mkKey]);
+                    }
+                });
+            }
             const totalVal = diVal + toVal;
             if (totalVal > 0) {
                 daySums[dow].push(totalVal);
