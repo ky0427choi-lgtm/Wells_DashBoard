@@ -244,38 +244,32 @@ function getMergedTrendData() {
     const recent = window._gasPerfCache || [];
     const mergedMap = {};
     
-    // 2. 베이스라인 적용 (모든 과거 데이터의 근간)
+    // 2. 베이스라인 적용 (날짜+사업장당 한 행으로 정규화)
+    // 베이스라인은 끼니별 행이므로 한 행에 끼니 필드만 누적한다.
+    // 기존처럼 끼니별 행을 그대로 남기면 이후 집계에서 같은 실적 행이
+    // 끼니 수만큼 반복 합산되어 일/월 식수가 최대 4배까지 부풀려진다.
     baseline.forEach(b => {
         let sName = b.siteName;
         if (sName === "미래기술캠퍼스") sName = "미캠";
         if (sName === "sdr" || sName === "SDR") sName = "SDR";
-        
-        const key = `${b.date}|${sName}|${b.meal}`;
-        mergedMap[key] = {
-            date: b.date, siteName: sName, region: b.region, meal: b.meal,
-            [`DI_${b.meal}`]: b.actual, [`TO_${b.meal}`]: 0,
-            isBaseline: true
-        };
+
+        const key = `${b.date}|${sName}`;
+        if (!mergedMap[key]) {
+            mergedMap[key] = { date: b.date, siteName: sName, region: b.region, isBaseline: true };
+        }
+        mergedMap[key][`DI_${b.meal}`] = n(b.actual);
+        mergedMap[key][`TO_${b.meal}`] = 0;
     });
     
-    // 3. 최근 실시간 데이터 병합 (최근 14일 집중 분석)
-    const today = new Date();
-    const twoWeeksAgo = new Date();
-    twoWeeksAgo.setDate(today.getDate() - 14);
-    const twoWeeksAgoStr = _toYMD(twoWeeksAgo);
-
+    // 3. 실적데이터 병합 (동일 날짜+사업장의 베이스라인을 대체)
     recent.forEach(r => {
-        // 최근 14일치이거나 베이스라인 데이터가 아닌(새로 입력된) 데이터만 병합 대상
-        if (r.date >= twoWeeksAgoStr || !r.isBaseline) {
-            ['조식', '중식', '석식', '야식'].forEach(m => {
-                const di = n(r[`DI_${m}`]);
-                const to = n(r[`TO_${m}`]);
-                if (di + to > 0) {
-                    const key = `${r.date}|${r.siteName}|${m}`;
-                    mergedMap[key] = { ...r, isBaseline: false };
-                }
-            });
-        }
+        let sName = r.siteName;
+        if (sName === "미래기술캠퍼스") sName = "미캠";
+        if (sName === "sdr" || sName === "SDR") sName = "SDR";
+        const key = `${r.date}|${sName}`;
+        // 실적데이터는 날짜+사업장 단위의 완전한 원본이므로 베이스라인보다 우선한다.
+        // 끼니별로 같은 객체를 여러 번 저장하지 않는다.
+        mergedMap[key] = { ...r, siteName: sName, isBaseline: false };
     });
     
     window._mergedTrendCache = Object.values(mergedMap);
@@ -690,7 +684,7 @@ function renderTabTrend(body) {
         /* WMA로 클라이언트 자체 예측 (GAS 저장값 없을 때) */
         const wmaVal = wmaForecast(dates, getMkVal, ds);
         const fv = storedPred > 0 ? storedPred : wmaVal;
-        foreRows.push({ ds, fv, wmaVal, ht, isOff });
+        foreRows.push({ ds, fv, wmaVal, ht, isOff, isStored: storedPred > 0 });
     }
 
     /* ★ v4.0: 편차 패턴 감지 실행 */
@@ -898,9 +892,21 @@ function renderTabTrend(body) {
                                                 let wmaNote = '';
                                                 if (isForecast && foreVal) {
                                                     const ht2 = getHolidayType(clickDate);
-                                                    const corrFactor = ht2.type === 'sandwich' ? '×0.60 (징검다리)' : isPostHolidayDate(clickDate) ? '×0.75 (공휴일 직후)' : '';
+                                                    const corrFactors = [];
+                                                    if (ht2.type === 'sandwich') corrFactors.push('×0.60 (징검다리)');
+                                                    else if (isPostHolidayDate(clickDate)) corrFactors.push('×0.75 (공휴일 직후)');
+                                                    else {
+                                                        const nextDate = new Date(clickDate + 'T00:00:00');
+                                                        nextDate.setDate(nextDate.getDate() + 1);
+                                                        const nextDow = nextDate.getDay();
+                                                        if (nextDow === 0 || nextDow === 6) corrFactors.push('×0.85 (휴일 전날)');
+                                                    }
+                                                    const forecastEnv = getEnvFactor(clickDate);
+                                                    if (forecastEnv.seasonTag.includes('혹서기')) corrFactors.push('×0.92 (혹서기)');
+                                                    if (!foreVal.isStored && forecastEnv.isHistHoliday) corrFactors.push('×0.25 (전년도 휴일)');
+                                                    const corrFactor = corrFactors.join(' · ');
                                                     wmaNote = `<div style="margin-top:6px;font-size:9px;color:var(--dim);line-height:1.6">
-                                                        🤖 WMA 예측 · ${dayOfWeek}요일 과거 데이터 가중 평균
+                                                        🤖 ${foreVal.isStored ? '저장 예측' : 'WMA 예측'} · ${dayOfWeek}요일 과거 데이터 가중 평균
                                                         ${corrFactor ? `· <strong style="color:#f43f5e">${corrFactor} 보정 적용</strong>` : ''}
                                                     </div>`;
                                                 }

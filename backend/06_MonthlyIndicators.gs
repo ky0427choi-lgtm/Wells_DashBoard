@@ -23,12 +23,25 @@ function updateMonthlyIndicators(sn, rg, dt){
     if(changed) ms.getRange(1,1,1,needHeaders.length).setValues([curHdr.slice(0, needHeaders.length)]);
   }
 
-  /* ★ [수정] 전체 object 변환은 유지하되, 해당 사업장+해당월만 집계하여 출력 누락 방지 */
-  var allPerf=sheetToObj(ps), mRecs=allPerf.filter(function(r){ return normDateStr(r["날짜"]||"").substring(0,7)===ym && String(r["사업장명"]||"").trim()===sn; });
+  /* 해당 사업장+월 데이터를 날짜별로 정규화한다.
+     동일 날짜가 여러 번 저장된 경우 시트의 마지막 행(최신 저장본)만 사용한다. */
+  var allPerf=sheetToObj(ps), byDate={};
+  allPerf.forEach(function(r){
+    var rDate=normDateStr(r["날짜"]||"");
+    if(rDate.substring(0,7)!==ym || String(r["사업장명"]||"").trim()!==sn) return;
+    byDate[rDate]=r;
+  });
+  var mRecs=Object.keys(byDate).sort().map(function(d){ return byDate[d]; });
   if(mRecs.length===0)return;
-  var count=mRecs.length, sumBf=0, sumLu=0, sumDn=0, sumNt=0, sumLuTO=0, maxLu=0, minLu=Infinity;
+  var validRecs=mRecs.filter(function(r){
+    return ["조식","중식","석식","야식"].some(function(m){
+      return num(r["DI_"+m])+num(r["TO_"+m])>0;
+    });
+  });
+  if(validRecs.length===0)return;
+  var count=validRecs.length, sumBf=0, sumLu=0, sumDn=0, sumNt=0, sumLuTO=0, maxLu=0, minLu=Infinity;
   var sumFc=0, countFc=0;
-  mRecs.forEach(function(r){
+  validRecs.forEach(function(r){
     var d1=num(r["DI_조식"]), d2=num(r["DI_중식"]), d3=num(r["DI_석식"]), d4=num(r["DI_야식"]), t1=num(r["TO_조식"]), t2=num(r["TO_중식"]), t3=num(r["TO_석식"]), t4=num(r["TO_야식"]);
     sumBf+=d1+t1; sumLu+=d2+t2; sumDn+=d3+t3; sumNt+=d4+t4; sumLuTO+=t2;
     var curL=d2+t2; if(curL>maxLu)maxLu=curL; if(curL<minLu)minLu=curL;

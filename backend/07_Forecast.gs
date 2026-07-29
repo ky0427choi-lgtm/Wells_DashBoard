@@ -148,6 +148,9 @@ function wmaForecast_(dates, byDate, meal, targetDs){
     if(nextDow === 0 || nextDow === 6) pred = Math.round(pred * 0.85);
   }
 
+  /* 프론트 정밀분석과 동일한 월별 계절 보정: 8월 혹서기 8% 감소 */
+  if(targetDt.getMonth() === 7) pred = Math.round(pred * 0.92);
+
   return Math.max(0, pred);
 }
 function calcErrorPct_(pred, actual){
