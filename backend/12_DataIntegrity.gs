@@ -282,7 +282,9 @@ function runAccuracyRebuild(){
       invalidateReportCache_();
       CacheService.getScriptCache().remove('ALL_SITE_DATA_V3');
       incrementGlobalVersion();
-      return {ok:true,backups:backupEntries.map(function(x){return x.backup;}).filter(String),performance:perfResult,forecastDedupe:forecastDedupeResult,monthly:monthlyResult,forecastGeneration:forecastGenerationResult,forecast:forecastResult,audit:audit};
+      var result={ok:true,backups:backupEntries.map(function(x){return x.backup;}).filter(String),performance:perfResult,forecastDedupe:forecastDedupeResult,monthly:monthlyResult,forecastGeneration:forecastGenerationResult,forecast:forecastResult,audit:audit};
+      console.log('ACCURACY_REBUILD_RESULT '+JSON.stringify(result));
+      return result;
     }catch(rebuildError){
       var rollbackErrors=[];
       backupEntries.slice().reverse().forEach(function(x){
