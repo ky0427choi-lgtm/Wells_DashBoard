@@ -25,6 +25,11 @@ function applyRoleUI() {
 }
 
 var KOR_HOLIDAYS_BY_YEAR = {
+    2025: [
+        "2025-01-01", "2025-01-27", "2025-01-28", "2025-01-29", "2025-01-30",
+        "2025-03-01", "2025-03-03", "2025-05-05", "2025-05-06", "2025-06-03", "2025-06-06",
+        "2025-08-15", "2025-10-03", "2025-10-05", "2025-10-06", "2025-10-07", "2025-10-08", "2025-10-09", "2025-12-25"
+    ],
     2026: [
         "2026-01-01", "2026-02-16", "2026-02-17", "2026-02-18",
         "2026-03-01", "2026-03-02", "2026-05-05", "2026-05-24", "2026-05-25",
@@ -37,9 +42,10 @@ var KOR_HOLIDAYS_BY_YEAR = {
 function _toYMD(d) {
     const x = (d instanceof Date) ? d : new Date(d);
     if (isNaN(x.getTime())) return "";
-    const y = x.getFullYear();
-    const m = String(x.getMonth() + 1).padStart(2, '0');
-    const dd = String(x.getDate()).padStart(2, '0');
+    const kst = new Date(x.getTime() + 9 * 60 * 60 * 1000);
+    const y = kst.getUTCFullYear();
+    const m = String(kst.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(kst.getUTCDate()).padStart(2, '0');
     return `${y}-${m}-${dd}`;
 }
 function _isWeekend(ymd) {

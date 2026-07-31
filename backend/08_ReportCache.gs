@@ -15,11 +15,11 @@ function ensureReportCacheSheet_(){
   return sh;
 }
 function invalidateReportCache_(){
+  try { CacheService.getScriptCache().removeAll(['PERF_ALL']); } catch(e){}
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(REPORT_CACHE_SHEET);
   if(!sh || sh.getLastRow() < 2) return;
   sh.getRange(2, 1, sh.getLastRow()-1, sh.getLastColumn()).clearContent();
-  try { CacheService.getScriptCache().removeAll(['PERF_ALL']); } catch(e){}
 }
 function getReportCacheVersion_(uid){
   var ss = SpreadsheetApp.getActiveSpreadsheet();

@@ -92,13 +92,14 @@ window.updateIntensity = function (u, sn) {
 function getRec() { try { return JSON.parse(localStorage.getItem("WS_REC") || "[]") } catch (e) { return [] } }
 function saveRec(arr) { localStorage.setItem("WS_REC", JSON.stringify(arr)); }
 function _recKey(rec) { return `${String(rec.date || "").trim()}||${String(rec.siteName || "").trim()}`; }
+function _hasEnteredValue(v) { return v !== '' && v !== null && v !== undefined; }
 
 function normalizePerfRow(row) {
     let sName = String(row.siteName || row["사업장명"] || "").trim();
     if (sName === "미래기술캠퍼스") sName = "미캠";
     if (sName.toLowerCase() === "sdr") sName = "SDR";
     
-    return {
+    const result = {
         date: String(row.date || row["날짜"] || "").slice(0, 10),
         siteName: sName,
         region: String(row.region || row["지역"] || "").trim(),
@@ -107,6 +108,12 @@ function normalizePerfRow(row) {
         도전매출: n(row.도전매출), 재료비: n(row.재료비),
         식사특이사항: row.식사특이사항 || "", 기타특이사항: row.기타특이사항 || ""
     };
+    ['DI', 'TO'].forEach(type => ['조식', '중식', '석식', '야식'].forEach(meal => {
+        const key = `${type}_${meal}`;
+        const enteredKey = `entered_${key}`;
+        result[enteredKey] = row[enteredKey] != null ? Boolean(row[enteredKey]) : _hasEnteredValue(row[key]);
+    }));
+    return result;
 }
 
 function normalizeForecastRow(row) {
@@ -130,32 +137,56 @@ function normalizeForecastRow(row) {
     };
 }
 
-function aggregateForecastByDate(siteNames, mk) {
-    const keySites = (siteNames || []).filter(Boolean).slice().sort().join('|');
-    const memoKey = `${keySites}__${mk}`;
+function aggregateForecastByDate(siteNames, mk, d1Only = false) {
+    const normalizedSites = [...new Set((siteNames || []).filter(Boolean))].sort();
+    const keySites = normalizedSites.join('|');
+    const memoKey = `${keySites}__${mk}__${d1Only ? 'D1' : 'LATEST'}`;
     if (_gasForecastAggMemo[memoKey]) return _gasForecastAggMemo[memoKey];
-    const set = new Set((siteNames || []).filter(Boolean));
+    const set = new Set(normalizedSites);
     let meals = [mk];
     if (mk === '합계') meals = ['조식', '중식', '석식', '야식'];
     else if (mk === 'DI_합계') meals = ['DI_조식', 'DI_중식', 'DI_석식', 'DI_야식'];
     else if (mk === 'TO_합계') meals = ['TO_조식', 'TO_중식', 'TO_석식', 'TO_야식'];
-    const rows = (_gasForecastCache || []).filter(r => r && r.targetDate && (!set.size || set.has(r.siteName)) && meals.includes(r.meal));
+    const previousCalendarDate = ds => {
+        const d = new Date(ds + 'T00:00:00');
+        d.setDate(d.getDate() - 1);
+        return _toYMD(d);
+    };
+    const rows = (_gasForecastCache || []).filter(r => r && r.targetDate && r.baseDate && r.baseDate < r.targetDate
+        && (!d1Only || r.baseDate === previousCalendarDate(r.targetDate))
+        && (!set.size || set.has(r.siteName)) && meals.includes(r.meal));
 
     const latestByKey = {};
     rows.forEach(r => {
         const key = `${r.targetDate}||${r.siteName}||${r.meal}`;
-        if (!latestByKey[key] || (r.baseDate || '') > (latestByKey[key].baseDate || '')) {
+        const current = latestByKey[key];
+        const newerBase = !current || (r.baseDate || '') > (current.baseDate || '');
+        const sameBaseNewerCreation = current && r.baseDate === current.baseDate
+            && new Date(r.createdAt || 0).getTime() > new Date(current.createdAt || 0).getTime();
+        if (newerBase || sameBaseNewerCreation) {
             latestByKey[key] = r;
         }
     });
 
+    const effectiveSites = normalizedSites.length ? normalizedSites : [...new Set(Object.values(latestByKey).map(r => r.siteName))];
+    const expectedCount = effectiveSites.length * meals.length;
     const agg = {};
     Object.values(latestByKey).forEach(r => {
         const k = r.targetDate;
-        if (!agg[k]) agg[k] = { pred: 0, actual: 0, hasActual: false, count: 0 };
+        if (!agg[k]) agg[k] = { pred: 0, actual: 0, absError: 0, count: 0, actualCount: 0, expectedCount: expectedCount, completePrediction: false, completeActual: false };
         agg[k].pred += n(r.predicted);
-        if (r.actual !== '' && r.actual != null) { agg[k].actual += n(r.actual); agg[k].hasActual = true; }
+        if (r.actual !== '' && r.actual != null) {
+            const actual = n(r.actual), predicted = n(r.predicted);
+            agg[k].actual += actual;
+            agg[k].absError += Math.abs(predicted - actual);
+            agg[k].actualCount += 1;
+        }
         agg[k].count += 1;
+    });
+    Object.values(agg).forEach(row => {
+        row.completePrediction = row.expectedCount > 0 && row.count === row.expectedCount;
+        row.completeActual = row.completePrediction && row.actualCount === row.expectedCount;
+        row.hasActual = row.completeActual;
     });
     _gasForecastAggMemo[memoKey] = agg;
     return agg;
@@ -163,32 +194,30 @@ function aggregateForecastByDate(siteNames, mk) {
 
 function getForecastValueForDate(siteNames, mk, ds) {
     const agg = aggregateForecastByDate(siteNames, mk);
-    return (agg[ds] && agg[ds].pred) ? agg[ds].pred : null;
+    return (agg[ds] && agg[ds].completePrediction && agg[ds].pred > 0) ? agg[ds].pred : null;
 }
 
 function getStoredAccuracy(siteNames, mk) {
-    const agg = aggregateForecastByDate(siteNames, mk);
-    const dates = Object.keys(agg).filter(k => agg[k].hasActual).sort();
+    const agg = aggregateForecastByDate(siteNames, mk, true);
+    const dates = Object.keys(agg).filter(k => agg[k].completeActual).sort();
     if (!dates.length) return null;
-    let totalError = 0, count = 0;
+    let totalError = 0, totalActual = 0;
     dates.forEach(d => {
         const row = agg[d];
-        if (row.actual > 0) {
-            totalError += Math.abs(row.pred - row.actual) / row.actual;
-            count++;
-        }
+        totalError += row.absError;
+        totalActual += row.actual;
     });
-    return count > 0 ? Math.max(0, 100 - (totalError / count * 100)) : null;
+    return totalActual > 0 ? Math.max(0, parseFloat((100 - (totalError / totalActual * 100)).toFixed(1))) : null;
 }
 
 window.loadPastRec = function (u, sn, dateVal) {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = _toYMD(new Date());
     const modeEl = document.getElementById(`fmode_${u}`);
     const recs = getRec();
     const past = recs.find(r => r.date === dateVal && r.siteName === sn);
     if (past) {
-        ['fd1', 'fd2', 'fd3', 'fd4'].forEach((id, i) => { const el = document.getElementById(`${id}_${u}`); if (el) el.value = past[['DI_조식', 'DI_중식', 'DI_석식', 'DI_야식'][i]] || ''; });
-        ['ft1', 'ft2', 'ft3', 'ft4'].forEach((id, i) => { const el = document.getElementById(`${id}_${u}`); if (el) el.value = past[['TO_조식', 'TO_중식', 'TO_석식', 'TO_야식'][i]] || ''; });
+        ['fd1', 'fd2', 'fd3', 'fd4'].forEach((id, i) => { const el = document.getElementById(`${id}_${u}`); const key = ['DI_조식', 'DI_중식', 'DI_석식', 'DI_야식'][i]; const v = past[key]; if (el) el.value = past[`entered_${key}`] === false ? '' : (_hasEnteredValue(v) ? v : ''); });
+        ['ft1', 'ft2', 'ft3', 'ft4'].forEach((id, i) => { const el = document.getElementById(`${id}_${u}`); const key = ['TO_조식', 'TO_중식', 'TO_석식', 'TO_야식'][i]; const v = past[key]; if (el) el.value = past[`entered_${key}`] === false ? '' : (_hasEnteredValue(v) ? v : ''); });
         const fsl = document.getElementById(`fsl_${u}`); if (fsl) fsl.value = past.도전매출 || '';
         const fmt = document.getElementById(`fmt_${u}`); if (fmt) fmt.value = past.재료비 || '';
         const fn1 = document.getElementById(`fn1_${u}`); if (fn1) fn1.value = past.식사특이사항 || '';
@@ -209,16 +238,20 @@ window.svRec = async function (btnOrU, uOrSn, snOrRg, rg) {
     const tagEls = document.querySelectorAll(`#tags_${u} .event-tag.active`);
     const tags = Array.from(tagEls).map(el => el.innerText.trim()).join(", ");
 
+    const readMealInput = id => {
+        const raw = String(document.getElementById(`${id}_${u}`).value || '').trim();
+        return raw === '' ? '' : Number(raw);
+    };
     const p = {
         tk: TK, date: document.getElementById(`fd_${u}`).value, siteName: sn, region: region,
-        DI_조식: Number(document.getElementById(`fd1_${u}`).value || 0),
-        DI_중식: Number(document.getElementById(`fd2_${u}`).value || 0),
-        DI_석식: Number(document.getElementById(`fd3_${u}`).value || 0),
-        DI_야식: Number(document.getElementById(`fd4_${u}`).value || 0),
-        TO_조식: Number(document.getElementById(`ft1_${u}`).value || 0),
-        TO_중식: Number(document.getElementById(`ft2_${u}`).value || 0),
-        TO_석식: Number(document.getElementById(`ft3_${u}`).value || 0),
-        TO_야식: Number(document.getElementById(`ft4_${u}`).value || 0),
+        DI_조식: readMealInput('fd1'),
+        DI_중식: readMealInput('fd2'),
+        DI_석식: readMealInput('fd3'),
+        DI_야식: readMealInput('fd4'),
+        TO_조식: readMealInput('ft1'),
+        TO_중식: readMealInput('ft2'),
+        TO_석식: readMealInput('ft3'),
+        TO_야식: readMealInput('ft4'),
         도전매출: 0, // 별도 관리 항목으로 0 처리
         재료비: 0,   // 별도 관리 항목으로 0 처리
         식사특이사항: tags, // 선택된 태그들 저장
@@ -237,13 +270,15 @@ window.svRec = async function (btnOrU, uOrSn, snOrRg, rg) {
 
     fetch(API, { method: "POST", body: JSON.stringify(p), redirect: "follow" })
         .then(r => r.text())
-        .then(t => {
+        .then(async t => {
             if (t.includes("Success")) {
                 if (msg) {
                     msg.style.color = "var(--success)";
                     msg.innerText = "✅ 저장 완료";
                 }
-                // 추이 분석 캐시 갱신 예약
+                // 서버 원본과 예측 실측반영 결과를 즉시 다시 읽어 모든 캐시를 일치시킨다.
+                try { await loadPerfFromGAS(true); } catch (e) { console.warn('실적 캐시 재동기화 실패:', e); }
+                window._mergedTrendCache = null;
                 window._mergedTrendForceRefresh = true;
             } else {
                 if (msg) {

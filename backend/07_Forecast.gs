@@ -53,11 +53,16 @@ function appendObjRowByMap_(sheet, headerInfo, obj){
   });
   sheet.appendRow(arr);
 }
+function isHolidayDateYmd_(ds){
+  if(!ds) return false;
+  var year = Number(String(ds).substring(0,4));
+  return (KOR_HOLIDAYS_BY_YEAR[year] || []).indexOf(ds) >= 0;
+}
 function isOffDateYmd_(ds){
   if(!ds) return false;
   var d = new Date(ds + 'T00:00:00');
   var day = d.getDay();
-  return day === 0 || day === 6;
+  return day === 0 || day === 6 || isHolidayDateYmd_(ds);
 }
 function linRegArr_(arr){
   if(!arr || arr.length === 0) return {slope:0, intercept:0};
@@ -70,14 +75,38 @@ function linRegArr_(arr){
   var slope = den ? nume / den : 0;
   return {slope:slope, intercept: ym - slope * xm};
 }
+function forecastFieldEntered_(r,key){
+  if(r['entered_'+key]!==undefined && r['entered_'+key]!==null) return Boolean(r['entered_'+key]);
+  var raw=r[key], version=String(r['입력계약버전']||'').trim();
+  return version===INPUT_CONTRACT_VERSION ? raw!=='' && raw!==null && raw!==undefined : num(raw)>0;
+}
+function forecastDayFromPerfRow_(r){
+  var result={
+    '조식':num(r['DI_조식'])+num(r['TO_조식']),'중식':num(r['DI_중식'])+num(r['TO_중식']),'석식':num(r['DI_석식'])+num(r['TO_석식']),'야식':num(r['DI_야식'])+num(r['TO_야식']),
+    'DI_조식':num(r['DI_조식']),'TO_조식':num(r['TO_조식']),'DI_중식':num(r['DI_중식']),'TO_중식':num(r['TO_중식']),
+    'DI_석식':num(r['DI_석식']),'TO_석식':num(r['TO_석식']),'DI_야식':num(r['DI_야식']),'TO_야식':num(r['TO_야식'])
+  };
+  result['합계']=result['조식']+result['중식']+result['석식']+result['야식'];
+  result['DI_합계']=result['DI_조식']+result['DI_중식']+result['DI_석식']+result['DI_야식'];
+  result['TO_합계']=result['TO_조식']+result['TO_중식']+result['TO_석식']+result['TO_야식'];
+  result.__entered={};
+  ['조식','중식','석식','야식'].forEach(function(meal){
+    result.__entered[meal]=forecastFieldEntered_(r,'DI_'+meal)||forecastFieldEntered_(r,'TO_'+meal);
+    result.__entered['DI_'+meal]=forecastFieldEntered_(r,'DI_'+meal);
+    result.__entered['TO_'+meal]=forecastFieldEntered_(r,'TO_'+meal);
+  });
+  result.__entered['합계']=['조식','중식','석식','야식'].some(function(meal){return result.__entered[meal];});
+  result.__entered['DI_합계']=['조식','중식','석식','야식'].some(function(meal){return result.__entered['DI_'+meal];});
+  result.__entered['TO_합계']=['조식','중식','석식','야식'].some(function(meal){return result.__entered['TO_'+meal];});
+  return result;
+}
 
 /* ★ v4.0 신규: 공휴일 직후 여부 판단 (주말 연속 후 첫 평일) */
 function isPostHoliday_(ds){
   var d = new Date(ds + 'T00:00:00');
   var prev = new Date(d); prev.setDate(d.getDate() - 1);
-  var prevDay = prev.getDay();
-  // 직전일이 일요일(0) 또는 토요일(6) → 공휴일/주말 직후 평일
-  return prevDay === 0 || prevDay === 6;
+  var prevDs = Utilities.formatDate(prev, 'Asia/Seoul', 'yyyy-MM-dd');
+  return !isOffDateYmd_(ds) && isHolidayDateYmd_(prevDs);
 }
 
 /* ★ v4.0 신규: 징검다리 판단 (전날·다음날 모두 주말) */
@@ -85,10 +114,9 @@ function isSandwichDay_(ds){
   var d = new Date(ds + 'T00:00:00');
   var prev = new Date(d); prev.setDate(d.getDate() - 1);
   var next = new Date(d); next.setDate(d.getDate() + 1);
-  var prevDay = prev.getDay(), nextDay = next.getDay();
-  var prevOff = prevDay === 0 || prevDay === 6;
-  var nextOff = nextDay === 0 || nextDay === 6;
-  return prevOff && nextOff;
+  var prevDs = Utilities.formatDate(prev, 'Asia/Seoul', 'yyyy-MM-dd');
+  var nextDs = Utilities.formatDate(next, 'Asia/Seoul', 'yyyy-MM-dd');
+  return !isOffDateYmd_(ds) && isOffDateYmd_(prevDs) && isOffDateYmd_(nextDs);
 }
 
 /* ★ v4.0 신규: 요일별 가중 이동평균 예측 (WMA)
@@ -99,30 +127,34 @@ function isSandwichDay_(ds){
 function wmaForecast_(dates, byDate, meal, targetDs){
   var targetDt = new Date(targetDs + 'T00:00:00');
   var targetDow = targetDt.getDay();         // 0=일 ~ 6=토
-  var isOff = targetDow === 0 || targetDow === 6;
+  var isOff = isOffDateYmd_(targetDs);
 
   /* 같은 요일 데이터 수집 (평일은 정확히 같은 요일, 주말은 토/일 통합) */
+  function sampleEntered_(ds){
+    var day=byDate[ds]||{}, enteredMap=day.__entered;
+    return enteredMap && Object.prototype.hasOwnProperty.call(enteredMap,meal) ? Boolean(enteredMap[meal]) : num(day[meal])>0;
+  }
   var sameDayVals = [];
   dates.forEach(function(ds){
+    if(ds >= targetDs) return;
     var dDow = new Date(ds + 'T00:00:00').getDay();
-    var match = isOff ? (dDow === 0 || dDow === 6) : (dDow === targetDow);
+    var match = isOff ? isOffDateYmd_(ds) : (!isOffDateYmd_(ds) && dDow === targetDow);
     if(!match) return;
-    var v = num((byDate[ds]||{})[meal]||0);
-    if(v > 0) sameDayVals.push(v);
+    if(sampleEntered_(ds)) sameDayVals.push(num((byDate[ds]||{})[meal]));
   });
 
   /* Fallback: 같은 요일 없으면 평일/주말 전체 평균 */
-  if(sameDayVals.length === 0){
+  if(sameDayVals.length < 2){
     var fallVals = [];
     dates.forEach(function(ds){
+      if(ds >= targetDs) return;
       var dDow = new Date(ds + 'T00:00:00').getDay();
-      var offMatch = isOff ? (dDow===0||dDow===6) : (dDow>=1&&dDow<=5);
+      var offMatch = isOff ? isOffDateYmd_(ds) : (!isOffDateYmd_(ds) && dDow>=1&&dDow<=5);
       if(!offMatch) return;
-      var v = num((byDate[ds]||{})[meal]||0);
-      if(v > 0) fallVals.push(v);
+      if(sampleEntered_(ds)) fallVals.push(num((byDate[ds]||{})[meal]));
     });
     if(!fallVals.length) return 0;
-    return Math.round(fallVals.reduce(function(a,b){return a+b;},0)/fallVals.length);
+    sameDayVals = fallVals;
   }
 
   /* 최근 N개만 사용 (최대 10개) */
@@ -142,10 +174,10 @@ function wmaForecast_(dates, byDate, meal, targetDs){
   } else if(isPostHoliday_(targetDs)){
     pred = Math.round(pred * 0.75); // 공휴일 직후: 25% 감소
   } else {
-    /* 공휴일 전날(다음날이 주말/공휴일): 15% 감소 */
+    /* 공휴일 전날: 15% 감소 (일반 금요일에는 적용하지 않음) */
     var nextDt = new Date(targetDt); nextDt.setDate(targetDt.getDate()+1);
-    var nextDow = nextDt.getDay();
-    if(nextDow === 0 || nextDow === 6) pred = Math.round(pred * 0.85);
+    var nextDs = Utilities.formatDate(nextDt, 'Asia/Seoul', 'yyyy-MM-dd');
+    if(isHolidayDateYmd_(nextDs)) pred = Math.round(pred * 0.85);
   }
 
   /* 프론트 정밀분석과 동일한 월별 계절 보정: 8월 혹서기 8% 감소 */
@@ -181,7 +213,7 @@ function syncForecastHistoryFromPerf_(perf){
   var keyToActual = {};
   existingRows.forEach(function(r, idx){
     var o = rowToObjByHeaders_(r, headerInfo.headers);
-    var key = [String(o['기준일']||''), String(o['예측대상일']||''), String(o['사업장명']||''), String(o['끼니']||'')].join('||');
+    var key = [String(o['기준일']||''), String(o['예측대상일']||''), canonicalSiteName_(o['사업장명']), String(o['끼니']||'')].join('||');
     keyToIdx[key] = idx;
     keyToStatus[key] = String(o['상태']||'').trim();
     if(keyToStatus[key] === '실측반영'){
@@ -196,25 +228,13 @@ function syncForecastHistoryFromPerf_(perf){
 
   var bySite = {};
   perf.forEach(function(r){
-    var sn = String(r.siteName||r['사업장명']||'').trim();
+    var sn = canonicalSiteName_(r.siteName||r['사업장명']);
     var rg = String(r.region||r['지역']||'').trim();
     var ds = normDateStr(r.date||r['날짜']||'');
     if(!sn || !ds) return;
     var site = bySite[sn] || {region:rg, byDate:{}};
     site.region = site.region || rg;
-    site.byDate[ds] = {
-      조식: num(r['DI_조식']) + num(r['TO_조식']),
-      중식: num(r['DI_중식']) + num(r['TO_중식']),
-      석식: num(r['DI_석식']) + num(r['TO_석식']),
-      야식: num(r['DI_야식']) + num(r['TO_야식']),
-      DI_조식: num(r['DI_조식']), TO_조식: num(r['TO_조식']),
-      DI_중식: num(r['DI_중식']), TO_중식: num(r['TO_중식']),
-      DI_석식: num(r['DI_석식']), TO_석식: num(r['TO_석식']),
-      DI_야식: num(r['DI_야식']), TO_야식: num(r['TO_야식'])
-    };
-    site.byDate[ds]['합계'] = site.byDate[ds]['조식'] + site.byDate[ds]['중식'] + site.byDate[ds]['석식'] + site.byDate[ds]['야식'];
-    site.byDate[ds]['DI_합계'] = site.byDate[ds]['DI_조식'] + site.byDate[ds]['DI_중식'] + site.byDate[ds]['DI_석식'] + site.byDate[ds]['DI_야식'];
-    site.byDate[ds]['TO_합계'] = site.byDate[ds]['TO_조식'] + site.byDate[ds]['TO_중식'] + site.byDate[ds]['TO_석식'] + site.byDate[ds]['TO_야식'];
+    site.byDate[ds] = forecastDayFromPerfRow_(r);
     bySite[sn] = site;
   });
 
@@ -282,26 +302,21 @@ function syncForecastHistoryFromPerf_(perf){
     SpreadsheetApp.flush();
   } catch(batchErr) {
     Logger.log('syncForecast batch write error: ' + batchErr);
+    throw batchErr;
   }
+  return {updated:Object.keys(updatedIdxSet).length,inserted:newRows.length,baseDate:baseDate};
 }
 
 /* ★ [수정] 저장 시점 전용 — 특정 사업장만 예측이력 재생성 (조회 속도 보호) */
 function syncForecastHistoryForSite_(sn, rg){
   if(!sn) return;
+  sn=canonicalSiteName_(sn);
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var ps = ss.getSheetByName("실적데이터");
   if(!ps || ps.getLastRow() < 2) return;
   var perf = sheetToObj(ps).filter(function(r){
-    return String(r["사업장명"]||"").trim() === String(sn).trim();
-  }).map(function(r){
-    return {
-      date: normDateStr(r["날짜"]||r["date"]||""),
-      siteName: String(r["사업장명"]||r["siteName"]||"").trim(),
-      region: String(r["지역"]||r["region"]||rg||"").trim(),
-      DI_조식: num(r["DI_조식"]), DI_중식: num(r["DI_중식"]), DI_석식: num(r["DI_석식"]), DI_야식: num(r["DI_야식"]),
-      TO_조식: num(r["TO_조식"]), TO_중식: num(r["TO_중식"]), TO_석식: num(r["TO_석식"]), TO_야식: num(r["TO_야식"])
-    };
-  }).filter(function(r){ return r.date && r.siteName; });
+    return canonicalSiteName_(r["사업장명"]) === sn;
+  }).filter(function(r){ return normDateStr(r["날짜"]||r.date||"") && canonicalSiteName_(r["사업장명"]||r.siteName); });
   if(perf.length) syncForecastHistoryFromPerf_(perf);
 }
 
@@ -310,39 +325,47 @@ function syncForecastHistoryForSite_(sn, rg){
    수정: 전체 행을 메모리에서 수정 후 1회 setValues() 호출 (~100ms)
    역할: 실적 입력 시 기존 예측 row에 실제값·오차율·정확도만 반영 (예측 재생성 X) */
 function reconcileForecastActuals_(sn, rg, dt, perfRow){
+  sn=canonicalSiteName_(sn);
   var sh = ensureForecastSheet_();
   var headerInfo = getHeaderMap_(sh);
   if(sh.getLastRow() < 2) return;
   var colCount = headerInfo.headers.length;
   var rows = sh.getRange(2,1,sh.getLastRow()-1,colCount).getValues();
-  /* ★ 실제값 맵 (DI+TO 합산 및 개별) */
+  function hasEntered_(v){ return v !== '' && v !== null && v !== undefined; }
+  function mealTotal_(di, to){ return hasEntered_(di) || hasEntered_(to) ? num(di) + num(to) : ''; }
+  function groupTotal_(keys, map){
+    var hasAny = keys.some(function(k){ return map[k] !== ''; });
+    return hasAny ? keys.reduce(function(sum, k){ return sum + num(map[k]); }, 0) : '';
+  }
+  /* 빈칸은 미입력, 숫자 0은 명시적 실적으로 구분한다. */
   var actualMap = {
-    '조식': num(perfRow[3]) + num(perfRow[7]),
-    '중식': num(perfRow[4]) + num(perfRow[8]),
-    '석식': num(perfRow[5]) + num(perfRow[9]),
-    '야식': num(perfRow[6]) + num(perfRow[10]),
-    'DI_조식': num(perfRow[3]), 'TO_조식': num(perfRow[7]),
-    'DI_중식': num(perfRow[4]), 'TO_중식': num(perfRow[8]),
-    'DI_석식': num(perfRow[5]), 'TO_석식': num(perfRow[9]),
-    'DI_야식': num(perfRow[6]), 'TO_야식': num(perfRow[10])
+    '조식': mealTotal_(perfRow[3], perfRow[7]),
+    '중식': mealTotal_(perfRow[4], perfRow[8]),
+    '석식': mealTotal_(perfRow[5], perfRow[9]),
+    '야식': mealTotal_(perfRow[6], perfRow[10]),
+    'DI_조식': hasEntered_(perfRow[3]) ? num(perfRow[3]) : '', 'TO_조식': hasEntered_(perfRow[7]) ? num(perfRow[7]) : '',
+    'DI_중식': hasEntered_(perfRow[4]) ? num(perfRow[4]) : '', 'TO_중식': hasEntered_(perfRow[8]) ? num(perfRow[8]) : '',
+    'DI_석식': hasEntered_(perfRow[5]) ? num(perfRow[5]) : '', 'TO_석식': hasEntered_(perfRow[9]) ? num(perfRow[9]) : '',
+    'DI_야식': hasEntered_(perfRow[6]) ? num(perfRow[6]) : '', 'TO_야식': hasEntered_(perfRow[10]) ? num(perfRow[10]) : ''
   };
-  actualMap['합계'] = actualMap['조식'] + actualMap['중식'] + actualMap['석식'] + actualMap['야식'];
-  actualMap['DI_합계'] = actualMap['DI_조식'] + actualMap['DI_중식'] + actualMap['DI_석식'] + actualMap['DI_야식'];
-  actualMap['TO_합계'] = actualMap['TO_조식'] + actualMap['TO_중식'] + actualMap['TO_석식'] + actualMap['TO_야식'];
+  actualMap['합계'] = groupTotal_(['조식','중식','석식','야식'], actualMap);
+  actualMap['DI_합계'] = groupTotal_(['DI_조식','DI_중식','DI_석식','DI_야식'], actualMap);
+  actualMap['TO_합계'] = groupTotal_(['TO_조식','TO_중식','TO_석식','TO_야식'], actualMap);
   var changed = false;
   rows.forEach(function(r, idx){
     var o = rowToObjByHeaders_(r, headerInfo.headers);
-    if(String(o['사업장명']||'').trim() !== String(sn||'').trim()) return;
+    if(canonicalSiteName_(o['사업장명']) !== sn) return;
     if(normDateStr(o['예측대상일']||'') !== dt) return;
     var meal = String(o['끼니']||'').trim();
     if(!Object.prototype.hasOwnProperty.call(actualMap, meal)) return;
     var actual = actualMap[meal];
     var pred = num(o['예측값']);
     o['지역'] = rg || o['지역'] || '';
+    o['사업장명'] = sn;
     o['실제값'] = actual;
     o['오차율(%)'] = calcErrorPct_(pred, actual);
     o['정확도(%)'] = calcAccuracy_(pred, actual);
-    o['상태'] = '실측반영';
+    o['상태'] = actual === '' ? '실측대기' : '실측반영';
     /* ★ v4.2: 메모리에서만 행 수정 (시트 쓰기는 루프 밖에서 1회) */
     headerInfo.headers.forEach(function(h, ci){
       if(Object.prototype.hasOwnProperty.call(o, h)) rows[idx][ci] = o[h];
@@ -371,7 +394,7 @@ function fetchForecastHistory_(auth){
       baseDate: normDateStr(o['기준일'] || ''),
       targetDate: normDateStr(o['예측대상일'] || ''),
       region: String(o['지역'] || '').trim(),
-      siteName: String(o['사업장명'] || '').trim(),
+      siteName: canonicalSiteName_(o['사업장명']),
       meal: String(o['끼니'] || '').trim(),
       predicted: num(o['예측값']),
       actual: o['실제값'] === '' ? '' : num(o['실제값']),

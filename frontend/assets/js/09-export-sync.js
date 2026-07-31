@@ -95,7 +95,7 @@
             h += `<div class="note-box"><strong>📝 산출 기준 및 해석</strong><br/><br/>
             <strong>• 업무 강도</strong> = 일일 총식수 ÷ 총 투입인원<br/>
             <span class="formula">→ 🟢 80미만 양호 · 🟡 95미만 주의 · 🔴 95이상 과부하(옵션: 품목수 축소 검토)</span><br/><br/>
-            <strong>• 회전율(RI)</strong> = (중식 D/I 식수 + 할인된 TO식수) ÷ 좌석수<br/>
+            <strong>• 회전율(RI)</strong> = (중식 D/I 식수 + 중식 T/O 식수) ÷ 좌석수<br/>
             <span class="formula">→ 🔴 3.5회 이상: 공간 과부하 (T/O 확대 집중)</span></div>`;
 
             ct.innerHTML = h;

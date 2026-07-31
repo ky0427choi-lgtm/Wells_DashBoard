@@ -5,9 +5,20 @@ on:
     branches: [main]
 
 jobs:
+  calculation-gate:
+    name: Verify calculation contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - name: Run deterministic calculation tests
+        run: node calculation-contract.test.js
+
   deploy-gas:
     name: Push GAS Backend
     runs-on: ubuntu-latest
+    needs: calculation-gate
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -18,6 +29,9 @@ jobs:
       - name: Push to GAS
         working-directory: ./backend
         run: clasp push --force
+      - name: Update existing GAS web app deployment
+        working-directory: ./backend
+        run: clasp deploy -i AKfycby-N6xTg8YK-BoHLUpTLnLIMcJDMUjOiP1bXjVgYFsdaYzY1h-yznd37GxPwCQcNCtOug -d "Accuracy contract $GITHUB_SHA"
 
   deploy-pages:
     name: Deploy Frontend to GitHub Pages

@@ -50,9 +50,24 @@ function sheetToObj(sheet) {
 
 function vMatch(h,list){var s=String(h||"").replace(/[\s_\/\(\)（）\-\.]/g,"").toLowerCase(); return list.some(function(l){var nl=String(l).replace(/[\s_\/\(\)（）\-\.]/g,"").toLowerCase(); return s===nl || s.indexOf(nl)>=0;});}
 function normDateStr(v){if(!v)return""; if(Object.prototype.toString.call(v)==="[object Date]")return Utilities.formatDate(v,"Asia/Seoul","yyyy-MM-dd"); var s=v.toString().trim().replace(/\./g,'-').replace(/\//g,'-'); if(/^\d{4}-\d{1,2}-\d{1,2}/.test(s)){var p=s.split('-');return p[0]+'-'+("0"+p[1]).slice(-2)+'-'+("0"+p[2]).slice(-2);} return"";}
+function normYmStr(v){
+  if(!v)return"";
+  if(Object.prototype.toString.call(v)==="[object Date]")return Utilities.formatDate(v,"Asia/Seoul","yyyy-MM");
+  var s=String(v).trim().replace(/\./g,'-').replace(/\//g,'-'), m=s.match(/^(\d{4})-(\d{1,2})/);
+  return m?m[1]+'-'+("0"+m[2]).slice(-2):"";
+}
+
+/* 사업장 별칭을 저장·집계·예측 전 구간에서 동일한 표준키로 통일한다. */
+function canonicalSiteName_(v){
+  var s=String(v==null?'':v).trim();
+  if(!s) return '';
+  if(s==='미래기술캠퍼스' || s==='미캠') return '미캠';
+  if(s.toLowerCase()==='sdr') return 'SDR';
+  return s;
+}
 
 function filterAuthRow_(auth, rg, sn){
   if(auth.role==='M') return true;
-  if(auth.role==='A'||auth.role==='B') return !auth.region || auth.region==='ALL' || String(rg||'').trim()===String(auth.region||'').trim();
-  return !auth.site || auth.site==='ALL' || String(sn||'').trim()===String(auth.site||'').trim();
+  if(auth.role==='A'||auth.role==='B') return auth.region==='ALL' || (!!auth.region && String(rg||'').trim()===String(auth.region||'').trim());
+  return !!auth.site && auth.site!=='ALL' && canonicalSiteName_(sn)===canonicalSiteName_(auth.site);
 }

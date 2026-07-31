@@ -3,13 +3,16 @@
    fetchDataFiltered, buildSiteData, fetchPerfData, fetchMonthlyData
    ============================================ */
 
+function performanceFieldEntered_(row, key){
+  var raw=row[key], version=String(row["입력계약버전"]||'').trim();
+  return version===INPUT_CONTRACT_VERSION ? raw!=='' && raw!==null && raw!==undefined : num(raw)>0;
+}
+
 function fetchDataFiltered(userId){
   var auth=userId?getUserAuth(userId):{role:'M',region:'ALL',site:'ALL'};
   var allData=buildSiteData();
   var filtered=allData.filter(function(s){
-    if(auth.role==='M')return true;
-    if(auth.role==='A'||auth.role==='B') return auth.region==='ALL' || s["지역"]===auth.region;
-    return auth.site==='ALL' || s["사업장명"]===auth.site;
+    return filterAuthRow_(auth,s["지역"],s["사업장명"]);
   });
   return {role:auth.role, region:auth.region, site:auth.site, data:filtered.map(function(m){ var o={}; Object.keys(FM).forEach(function(k){ if(m[k]!==undefined)o[FM[k]]=m[k]; }); return o; })};
 }
@@ -28,9 +31,12 @@ function buildSiteData(){
 
   var monthSheet=ss.getSheetByName("월간지표"), monthlyMap={};
   if(monthSheet && monthSheet.getLastRow()>1){
-    var mData=sheetToObj(monthSheet), nowYm=Utilities.formatDate(new Date(),"Asia/Seoul","yyyy-MM");
+    var mData=sheetToObj(monthSheet);
     mData.forEach(function(row){
-      if(normDateStr(row["기준연월"]||"").substring(0,7) === nowYm) monthlyMap[String(row["사업장명"]).trim()]=row;
+      var siteName=canonicalSiteName_(row["사업장명"]), rowYm=normYmStr(row["기준연월"]||"");
+      if(!siteName || !rowYm) return;
+      var existing=monthlyMap[siteName], existingYm=existing?normYmStr(existing["기준연월"]||""):"";
+      if(!existing || rowYm>=existingYm) monthlyMap[siteName]=row;
     });
   }
 
@@ -40,43 +46,46 @@ function buildSiteData(){
   if(perfSheet && perfSheet.getLastRow() > 1){
     var perfData = sheetToObj(perfSheet);
     perfData.forEach(function(row){
-      var sn = String(row["사업장명"]||"").trim();
+      var sn = canonicalSiteName_(row["사업장명"]);
       var dt = normDateStr(row["날짜"]||"");
       var fc = num(row["재료비"]);
+      var fcEntered = performanceFieldEntered_(row,"재료비");
       if(!sn || !dt) return;
       // 최신 날짜 기준으로 재료비 보관
       if(!latestFcMap[sn] || dt > latestFcMap[sn].date) {
-        latestFcMap[sn] = { date: dt, fc: fc };
+        latestFcMap[sn] = { date: dt, fc: fc, entered: fcEntered };
       }
     });
   }
 
   var result = siteData.map(function(site){
-    var sn=String(site["사업장명"]||"").trim();
+    var sn=canonicalSiteName_(site["사업장명"]);
     var mStats=monthlyMap[sn]||{}, m={};
     Object.keys(site).forEach(function(k){ m[k]=site[k]; });
+    m["사업장명"]=sn;
 
+    var hasMonthlyAvg = mStats && mStats["일평균_중식"] !== "" && mStats["일평균_중식"] != null;
     var mAvg = num(mStats["일평균_중식"]);
-    m["금월_평균중식"] = mAvg > 0 ? mAvg : (num(site["DI_중식"]) + num(site["TO_중식"]));
-    m["전월대비"] = num(mStats["전월대비(%)"]);
-    m["조업일수"] = num(mStats["조업일수"]) || 1;
+    m["금월_평균중식"] = hasMonthlyAvg ? mAvg : (num(site["DI_중식"]) + num(site["TO_중식"]));
+    m["월간지표기준연월"] = mStats ? normYmStr(mStats["기준연월"]||"") : "";
+    m["전월대비"] = mStats["전월대비(%)"]==="" || mStats["전월대비(%)"]==null ? "" : num(mStats["전월대비(%)"]);
+    m["조업일수"] = mStats["조업일수"]==="" || mStats["조업일수"]==null ? 0 : num(mStats["조업일수"]);
 
     /* ★ v3.9: 재료비율 — 실적데이터 최신값 우선, 없으면 월간지표 */
     var latestFc = latestFcMap[sn];
-    m["재료비율"] = latestFc && latestFc.fc > 0 ? latestFc.fc : num(mStats["재료비율"]);
+    m["재료비율"] = latestFc && latestFc.entered ? latestFc.fc : num(mStats["재료비율"]);
 
     /* ★ v3.9: WHI 점수 — 사업장현황 또는 월간지표에서 읽기 */
     m["WHI점수"] = num(site["WHI점수"]||site["WHI"]||mStats["WHI점수"]||0);
 
-    var seats = num(m["좌석수"]) || 1;
+    var seats = num(m["좌석수"]);
     var diM   = num(m["DI_중식"]);
     var toM   = num(m["TO_중식"]);
-    var toCorners = num(m["TO_코너수"]) || num(m["코너수"]) || 1;
 
-    /* ★ FIX 1-A: 회전율 계산 명확화 */
+    /* 동일 단위 유지: D/I 회전율=DI/좌석, T/O 포함 회전율=(DI+TO)/좌석 */
     if (seats > 0) {
       m["회전율(중식_T/O제외)"] = parseFloat((diM / seats).toFixed(2));
-      m["회전율(중식_T/O포함)"] = parseFloat(((diM + (toM / toCorners)) / seats).toFixed(2));
+      m["회전율(중식_T/O포함)"] = parseFloat(((diM + toM) / seats).toFixed(2));
     } else {
       m["회전율(중식_T/O제외)"] = 0;
       m["회전율(중식_T/O포함)"] = 0;
@@ -88,7 +97,7 @@ function buildSiteData(){
   return result;
 }
 
-function sheetToObj(sheet) {
+function legacyDashboard_sheetToObj_(sheet) {
   var data=sheet.getDataRange().getValues(); if(data.length<1)return[];
   var hdr=data[0].map(function(h){ return String(h||"").trim(); });
   return data.slice(1).filter(function(r){return r.some(function(c){return c!=="";});}).map(function(r){
@@ -133,11 +142,11 @@ function sheetToObj(sheet) {
   });
 }
 
-function vMatch(h,list){var s=String(h||"").replace(/[\s_\/\(\)（）\-\.]/g,"").toLowerCase(); return list.some(function(l){var nl=String(l).replace(/[\s_\/\(\)（）\-\.]/g,"").toLowerCase(); return s===nl || s.indexOf(nl)>=0;});}
-function normDateStr(v){if(!v)return""; if(Object.prototype.toString.call(v)==="[object Date]")return Utilities.formatDate(v,"Asia/Seoul","yyyy-MM-dd"); var s=v.toString().trim().replace(/\./g,'-').replace(/\//g,'-'); if(/^\d{4}-\d{1,2}-\d{1,2}/.test(s)){var p=s.split('-');return p[0]+'-'+("0"+p[1]).slice(-2)+'-'+("0"+p[2]).slice(-2);} return"";}
+function legacyDashboard_vMatch_(h,list){var s=String(h||"").replace(/[\s_\/\(\)（）\-\.]/g,"").toLowerCase(); return list.some(function(l){var nl=String(l).replace(/[\s_\/\(\)（）\-\.]/g,"").toLowerCase(); return s===nl || s.indexOf(nl)>=0;});}
+function legacyDashboard_normDateStr_(v){if(!v)return""; if(Object.prototype.toString.call(v)==="[object Date]")return Utilities.formatDate(v,"Asia/Seoul","yyyy-MM-dd"); var s=v.toString().trim().replace(/\./g,'-').replace(/\//g,'-'); if(/^\d{4}-\d{1,2}-\d{1,2}/.test(s)){var p=s.split('-');return p[0]+'-'+("0"+p[1]).slice(-2)+'-'+("0"+p[2]).slice(-2);} return"";}
 
 /* ★ v3.9 수정: updateMonthlyIndicators — 재료비율 평균 추가 */
-function updateMonthlyIndicators(sn, rg, dt){
+function legacyDashboard_updateMonthlyIndicators_(sn, rg, dt){
   if(!sn||!dt)return;
   var ym=dt.substring(0,7), ss=SpreadsheetApp.getActiveSpreadsheet(), ps=ss.getSheetByName("실적데이터"), ms=ss.getSheetByName("월간지표");
   if(!ps)return;
@@ -184,7 +193,7 @@ function updateMonthlyIndicators(sn, rg, dt){
 }
 
 
-function ensureForecastSheet_(){
+function legacyDashboard_ensureForecastSheet_(){
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(FORECAST_SHEET);
   if(!sh){
@@ -204,38 +213,38 @@ function ensureForecastSheet_(){
   if(changed){ sh.getRange(1,1,1,hdr.length).setValues([hdr]); }
   return sh;
 }
-function getHeaderMap_(sheet){
+function legacyDashboard_getHeaderMap_(sheet){
   var hdr = sheet.getRange(1,1,1,Math.max(1, sheet.getLastColumn())).getValues()[0].map(function(h){ return String(h||'').trim(); });
   var map = {};
   hdr.forEach(function(h, i){ if(h) map[h] = i; });
   return {headers: hdr, map: map};
 }
-function rowToObjByHeaders_(row, headers){
+function legacyDashboard_rowToObjByHeaders_(row, headers){
   var o = {};
   headers.forEach(function(h, i){ if(h) o[h] = row[i]; });
   return o;
 }
-function setRowValuesByMap_(sheet, rowNum, headerInfo, obj){
+function legacyDashboard_setRowValuesByMap_(sheet, rowNum, headerInfo, obj){
   var arr = new Array(headerInfo.headers.length).fill('');
   headerInfo.headers.forEach(function(h, i){
     if(Object.prototype.hasOwnProperty.call(obj, h)) arr[i] = obj[h];
   });
   sheet.getRange(rowNum, 1, 1, arr.length).setValues([arr]);
 }
-function appendObjRowByMap_(sheet, headerInfo, obj){
+function legacyDashboard_appendObjRowByMap_(sheet, headerInfo, obj){
   var arr = new Array(headerInfo.headers.length).fill('');
   headerInfo.headers.forEach(function(h, i){
     if(Object.prototype.hasOwnProperty.call(obj, h)) arr[i] = obj[h];
   });
   sheet.appendRow(arr);
 }
-function isOffDateYmd_(ds){
+function legacyDashboard_isOffDateYmd_(ds){
   if(!ds) return false;
   var d = new Date(ds + 'T00:00:00');
   var day = d.getDay();
   return day === 0 || day === 6;
 }
-function linRegArr_(arr){
+function legacyDashboard_linRegArr_(arr){
   if(!arr || arr.length === 0) return {slope:0, intercept:0};
   if(arr.length === 1) return {slope:0, intercept:Number(arr[0])||0};
   var n = arr.length, xm = (n - 1) / 2, ym = arr.reduce(function(a,b){ return a + Number(b||0); }, 0) / n, nume = 0, den = 0;
@@ -248,7 +257,7 @@ function linRegArr_(arr){
 }
 
 /* ★ v4.0 신규: 공휴일 직후 여부 판단 (주말 연속 후 첫 평일) */
-function isPostHoliday_(ds){
+function legacyDashboard_isPostHoliday_(ds){
   var d = new Date(ds + 'T00:00:00');
   var prev = new Date(d); prev.setDate(d.getDate() - 1);
   var prevDay = prev.getDay();
@@ -257,7 +266,7 @@ function isPostHoliday_(ds){
 }
 
 /* ★ v4.0 신규: 징검다리 판단 (전날·다음날 모두 주말) */
-function isSandwichDay_(ds){
+function legacyDashboard_isSandwichDay_(ds){
   var d = new Date(ds + 'T00:00:00');
   var prev = new Date(d); prev.setDate(d.getDate() - 1);
   var next = new Date(d); next.setDate(d.getDate() + 1);
@@ -272,7 +281,7 @@ function isSandwichDay_(ds){
    - 최근 데이터에 지수 가중치(α=0.30) 적용
    - 공휴일 직후: ×0.75 / 징검다리: ×0.60 / 공휴일 전날: ×0.85
    - 데이터 부족 시 전체 평일/주말 평균으로 fallback */
-function wmaForecast_(dates, byDate, meal, targetDs){
+function legacyDashboard_wmaForecast_(dates, byDate, meal, targetDs){
   var targetDt = new Date(targetDs + 'T00:00:00');
   var targetDow = targetDt.getDay();         // 0=일 ~ 6=토
   var isOff = targetDow === 0 || targetDow === 6;
@@ -329,12 +338,12 @@ function wmaForecast_(dates, byDate, meal, targetDs){
 
   return Math.max(0, pred);
 }
-function calcErrorPct_(pred, actual){
+function legacyDashboard_calcErrorPct_(pred, actual){
   pred = num(pred); actual = num(actual);
   if(actual <= 0) return '';
   return Math.round(Math.abs(actual - pred) / actual * 1000) / 10;
 }
-function calcAccuracy_(pred, actual){
+function legacyDashboard_calcAccuracy_(pred, actual){
   pred = num(pred); actual = num(actual);
   if(actual <= 0) return '';
   return Math.max(0, Math.round(100 - (Math.abs(actual - pred) / actual * 100)));
@@ -344,7 +353,7 @@ function calcAccuracy_(pred, actual){
    v3.9: 개별 setRowValuesByMap_ 호출 (N × 셀 쓰기 → 매우 느림)
    v4.1: 일괄(batch) setValues 1회 호출로 전환 → 10~50배 속도 향상
    + 실측반영 행 보존 로직 유지 */
-function syncForecastHistoryFromPerf_(perf){
+function legacyDashboard_syncForecastHistoryFromPerf_(perf){
   if(!perf || !perf.length) return;
   var sh = ensureForecastSheet_();
   var headerInfo = getHeaderMap_(sh);
@@ -462,7 +471,7 @@ function syncForecastHistoryFromPerf_(perf){
 }
 
 /* ★ [수정] 저장 시점 전용 — 특정 사업장만 예측이력 재생성 (조회 속도 보호) */
-function syncForecastHistoryForSite_(sn, rg){
+function legacyDashboard_syncForecastHistoryForSite_(sn, rg){
   if(!sn) return;
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var ps = ss.getSheetByName("실적데이터");
@@ -472,7 +481,7 @@ function syncForecastHistoryForSite_(sn, rg){
   }).map(function(r){
     return {
       date: normDateStr(r["날짜"]||r["date"]||""),
-      siteName: String(r["사업장명"]||r["siteName"]||"").trim(),
+      siteName: canonicalSiteName_(r["사업장명"]||r["siteName"]),
       region: String(r["지역"]||r["region"]||rg||"").trim(),
       DI_조식: num(r["DI_조식"]), DI_중식: num(r["DI_중식"]), DI_석식: num(r["DI_석식"]), DI_야식: num(r["DI_야식"]),
       TO_조식: num(r["TO_조식"]), TO_중식: num(r["TO_중식"]), TO_석식: num(r["TO_석식"]), TO_야식: num(r["TO_야식"])
@@ -485,7 +494,7 @@ function syncForecastHistoryForSite_(sn, rg){
    기존: forEach 내부에서 매 행마다 setRowValuesByMap_() 개별 호출 (~3-5초)
    수정: 전체 행을 메모리에서 수정 후 1회 setValues() 호출 (~100ms)
    역할: 실적 입력 시 기존 예측 row에 실제값·오차율·정확도만 반영 (예측 재생성 X) */
-function reconcileForecastActuals_(sn, rg, dt, perfRow){
+function legacyDashboard_reconcileForecastActuals_(sn, rg, dt, perfRow){
   var sh = ensureForecastSheet_();
   var headerInfo = getHeaderMap_(sh);
   if(sh.getLastRow() < 2) return;
@@ -531,7 +540,7 @@ function reconcileForecastActuals_(sn, rg, dt, perfRow){
   }
 }
 
-function fetchForecastHistory_(auth){
+function legacyDashboard_fetchForecastHistory_(auth){
   var sh = ensureForecastSheet_();
   if(sh.getLastRow() < 2) return [];
   var headerInfo = getHeaderMap_(sh);
@@ -547,7 +556,7 @@ function fetchForecastHistory_(auth){
       baseDate: normDateStr(o['기준일'] || ''),
       targetDate: normDateStr(o['예측대상일'] || ''),
       region: String(o['지역'] || '').trim(),
-      siteName: String(o['사업장명'] || '').trim(),
+      siteName: canonicalSiteName_(o['사업장명']),
       meal: String(o['끼니'] || '').trim(),
       predicted: num(o['예측값']),
       actual: o['실제값'] === '' ? '' : num(o['실제값']),
@@ -562,7 +571,7 @@ function fetchForecastHistory_(auth){
 }
 
 /* ★ v3.8 수정: dh(시간 오프셋) 파라미터 추가 */
-function mkToken(uid, dh){
+function legacyDashboard_mkToken_(uid, dh){
   var h = Math.floor(Date.now()/3600000) + (dh || 0);
   var raw = uid + "|" + h + "|" + TS;
   return Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, raw)).replace(/[^a-zA-Z0-9]/g,'').substring(0,32);
@@ -572,7 +581,7 @@ function mkToken(uid, dh){
    기존: 외부=시간대(25) × 내부=사용자(N) → 첫 매칭까지 최악 25×N회 해시
    수정: 외부=사용자(N) × 내부=시간대(25) → 사용자 매칭 시 최대 25회에서 조기 종료
    이유: 대부분 요청은 최근 토큰이므로 dh=0부터 역순으로 탐색하면 1~2회에 종료 */
-function chkToken(tk){
+function legacyDashboard_chkToken_(tk){
   var ss=SpreadsheetApp.getActiveSpreadsheet(), as=ss.getSheetByName("권한관리");
   if(!as)return false;
   var lr=as.getLastRow(); if(lr<2)return false;
@@ -587,13 +596,13 @@ function chkToken(tk){
   return false;
 }
 
-function getUserAuth(userId){var ss=SpreadsheetApp.getActiveSpreadsheet(), as=ss.getSheetByName("권한관리"), def={role:'C', region:'', site:''}; if(!as||as.getLastRow()<2)return def; var rows=as.getDataRange().getValues(), hdr=rows[0], colId=0, colRole=1, colRegion=2, colSite=3; hdr.forEach(function(h,i){ var hn=String(h).replace(/\s/g,''); if(hn.includes('계정'))colId=i; if(hn.includes('등급'))colRole=i; if(hn.includes('지역'))colRegion=i; if(hn.includes('사업장'))colSite=i; }); for(var i=1;i<rows.length;i++){ if(String(rows[i][colId]).trim().toLowerCase()===userId.split("@")[0].toLowerCase()){ return {role:rows[i][colRole], region:rows[i][colRegion], site:rows[i][colSite]}; } } return def;}
-function handleLoginV3(fullId, inputPw){var ss=SpreadsheetApp.getActiveSpreadsheet(), sid=fullId.split("@")[0].toLowerCase().trim(), as=ss.getSheetByName("권한관리"); if(!as){writeLoginLog(ss, sid, "NoPermission"); return ContentService.createTextOutput("NoPermission");} var rows=as.getDataRange().getValues(), hdr=rows[0], colId=0, colPw=4; hdr.forEach(function(h,i){ var hn=String(h).replace(/\s/g,''); if(hn.includes('계정'))colId=i; if(hn.toLowerCase().includes('pw'))colPw=i; }); for(var i=1;i<rows.length;i++){if(String(rows[i][colId]).trim().toLowerCase()===sid){var storedPw=String(rows[i][colPw]||"").trim(); if(!storedPw){writeLoginLog(ss, sid, "PasswordNotSet"); return ContentService.createTextOutput("PasswordNotSet");} if(String(inputPw||"")!==storedPw){writeLoginLog(ss, sid, "InvalidPassword"); return ContentService.createTextOutput("InvalidPassword");} writeLoginLog(ss, sid, "Success"); return ContentService.createTextOutput("Valid|"+mkToken(sid)+"|"+getUserAuth(sid).role+"|"+getUserAuth(sid).region+"|"+getUserAuth(sid).site);} } writeLoginLog(ss, sid, "NoPermission"); return ContentService.createTextOutput("NoPermission");}
+function legacyDashboard_getUserAuth_(userId){var ss=SpreadsheetApp.getActiveSpreadsheet(), as=ss.getSheetByName("권한관리"), def={role:'C', region:'', site:''}; if(!as||as.getLastRow()<2)return def; var rows=as.getDataRange().getValues(), hdr=rows[0], colId=0, colRole=1, colRegion=2, colSite=3; hdr.forEach(function(h,i){ var hn=String(h).replace(/\s/g,''); if(hn.includes('계정'))colId=i; if(hn.includes('등급'))colRole=i; if(hn.includes('지역'))colRegion=i; if(hn.includes('사업장'))colSite=i; }); for(var i=1;i<rows.length;i++){ if(String(rows[i][colId]).trim().toLowerCase()===userId.split("@")[0].toLowerCase()){ return {role:rows[i][colRole], region:rows[i][colRegion], site:rows[i][colSite]}; } } return def;}
+function legacyDashboard_handleLoginV3_(fullId, inputPw){var ss=SpreadsheetApp.getActiveSpreadsheet(), sid=fullId.split("@")[0].toLowerCase().trim(), as=ss.getSheetByName("권한관리"); if(!as){writeLoginLog(ss, sid, "NoPermission"); return ContentService.createTextOutput("NoPermission");} var rows=as.getDataRange().getValues(), hdr=rows[0], colId=0, colPw=4; hdr.forEach(function(h,i){ var hn=String(h).replace(/\s/g,''); if(hn.includes('계정'))colId=i; if(hn.toLowerCase().includes('pw'))colPw=i; }); for(var i=1;i<rows.length;i++){if(String(rows[i][colId]).trim().toLowerCase()===sid){var storedPw=String(rows[i][colPw]||"").trim(); if(!storedPw){writeLoginLog(ss, sid, "PasswordNotSet"); return ContentService.createTextOutput("PasswordNotSet");} if(String(inputPw||"")!==storedPw){writeLoginLog(ss, sid, "InvalidPassword"); return ContentService.createTextOutput("InvalidPassword");} writeLoginLog(ss, sid, "Success"); return ContentService.createTextOutput("Valid|"+mkToken(sid)+"|"+getUserAuth(sid).role+"|"+getUserAuth(sid).region+"|"+getUserAuth(sid).site);} } writeLoginLog(ss, sid, "NoPermission"); return ContentService.createTextOutput("NoPermission");}
 
 /* ============================================
    ★ v3.7 writeLoginLog — 안정성 강화
    ============================================ */
-function writeLoginLog(ss, userId, result){
+function legacyDashboard_writeLoginLog_(ss, userId, result){
   try{
     if(!userId || String(userId).trim() === "" || userId === "undefined"){
       Logger.log("writeLoginLog: userId가 비어있음, result=" + result);
@@ -632,14 +641,14 @@ function writeLoginLog(ss, userId, result){
   }
 }
 
-function filterAuthRow_(auth, rg, sn){
+function legacyDashboard_filterAuthRow_(auth, rg, sn){
   if(auth.role==='M') return true;
   if(auth.role==='A'||auth.role==='B') return !auth.region || auth.region==='ALL' || String(rg||'').trim()===String(auth.region||'').trim();
   return !auth.site || auth.site==='ALL' || String(sn||'').trim()===String(auth.site||'').trim();
 }
 
 /* ★ v4.1: 리포트캐시 시트 관리 함수 */
-function ensureReportCacheSheet_(){
+function legacyDashboard_ensureReportCacheSheet_(){
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(REPORT_CACHE_SHEET);
   if(!sh){
@@ -649,14 +658,14 @@ function ensureReportCacheSheet_(){
   }
   return sh;
 }
-function invalidateReportCache_(){
+function legacyDashboard_invalidateReportCache_(){
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(REPORT_CACHE_SHEET);
   if(!sh || sh.getLastRow() < 2) return;
   sh.getRange(2, 1, sh.getLastRow()-1, sh.getLastColumn()).clearContent();
   try { CacheService.getScriptCache().removeAll(['PERF_ALL']); } catch(e){}
 }
-function getReportCacheVersion_(uid){
+function legacyDashboard_getReportCacheVersion_(uid){
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(REPORT_CACHE_SHEET);
   if(!sh || sh.getLastRow() < 2) return 0;
@@ -720,10 +729,18 @@ function fetchPerfData(uid){
   }).map(function(r){
     return {
       date: normDateStr(r["날짜"]||r["date"]||""),
-      siteName: String(r["사업장명"]||r["siteName"]||"").trim(),
+      siteName: canonicalSiteName_(r["사업장명"]||r["siteName"]),
       region: String(r["지역"]||r["region"]||"").trim(),
       DI_조식: num(r["DI_조식"]), DI_중식: num(r["DI_중식"]), DI_석식: num(r["DI_석식"]), DI_야식: num(r["DI_야식"]),
       TO_조식: num(r["TO_조식"]), TO_중식: num(r["TO_중식"]), TO_석식: num(r["TO_석식"]), TO_야식: num(r["TO_야식"]),
+      entered_DI_조식: performanceFieldEntered_(r,"DI_조식"),
+      entered_DI_중식: performanceFieldEntered_(r,"DI_중식"),
+      entered_DI_석식: performanceFieldEntered_(r,"DI_석식"),
+      entered_DI_야식: performanceFieldEntered_(r,"DI_야식"),
+      entered_TO_조식: performanceFieldEntered_(r,"TO_조식"),
+      entered_TO_중식: performanceFieldEntered_(r,"TO_중식"),
+      entered_TO_석식: performanceFieldEntered_(r,"TO_석식"),
+      entered_TO_야식: performanceFieldEntered_(r,"TO_야식"),
       식사특이사항: r["식사특이사항"]||"", 기타특이사항: r["기타특이사항"]||"",
       도전매출: num(r["도전매출"]), 재료비: num(r["재료비"])
     };
@@ -761,9 +778,7 @@ function fetchMonthlyData(uid){
   var auth=getUserAuth(uid), ss=SpreadsheetApp.getActiveSpreadsheet(), ms=ss.getSheetByName("월간지표");
   if(!ms||ms.getLastRow()<2)return {monthly:[]};
   return {monthly: sheetToObj(ms).filter(function(r){
-    var rg=String(r["지역"]||"").trim(), sn=String(r["사업장명"]||"").trim();
-    if(auth.role==='M')return true;
-    if(auth.role==='A'||auth.role==='B')return !auth.region||auth.region==='ALL'||rg===auth.region;
-    return !auth.site||auth.site==='ALL'||sn===auth.site;
+    var rg=String(r["지역"]||"").trim(), sn=canonicalSiteName_(r["사업장명"]);
+    return filterAuthRow_(auth,rg,sn);
   })};
 }

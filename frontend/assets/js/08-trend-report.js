@@ -32,12 +32,48 @@ function linReg(ys) {
     return { slope, intercept: ym - slope * xm };
 }
 
+function isCalendarOffDate(ds) {
+    const type = getHolidayType(ds).type;
+    return type === 'weekend' || type === 'holiday';
+}
+
+function hasCompleteSiteCoverage(expectedSites, enteredSites, fallbackSites, recordSites) {
+    const expected = expectedSites || [], entered = enteredSites || new Set();
+    if (expected.length) return expected.every(site => entered.has(site));
+    return true; // 해당 날짜·끼니의 운영 사업장이 없으면 구조적 0으로 완전 입력이다.
+}
+
+function recentCalendarDates(anchorYmd, count) {
+    const anchor = new Date(anchorYmd + 'T00:00:00'), result = [];
+    for (let offset = count - 1; offset >= 0; offset--) {
+        const d = new Date(anchor); d.setDate(anchor.getDate() - offset);
+        result.push(_toYMD(d));
+    }
+    return result;
+}
+
+function masterOperatesMealOnDate(master, meal, dateYmd) {
+    if (!master) return true;
+    const suffix = isCalendarOffDate(dateYmd) ? '(주말)' : '';
+    return ['DI_', 'TO_'].some(prefix => n(master[prefix + meal + suffix]) > 0);
+}
+
+function aggregateActualDitoByDate(records, meals) {
+    const diByDate = {}, toByDate = {};
+    (records || []).filter(r => !r.isBaseline).forEach(r => {
+        (meals || []).forEach(meal => {
+            diByDate[r.date] = (diByDate[r.date] || 0) + n(r['DI_' + meal]);
+            toByDate[r.date] = (toByDate[r.date] || 0) + n(r['TO_' + meal]);
+        });
+    });
+    return { diByDate, toByDate };
+}
+
 /* ★ v4.0 신규: 공휴일 직후 판단 (주말 직후 첫 평일) */
 function isPostHolidayDate(ds) {
     const d = new Date(ds + 'T00:00:00');
     const prev = new Date(d); prev.setDate(d.getDate() - 1);
-    const pDay = prev.getDay();
-    return pDay === 0 || pDay === 6;
+    return !isCalendarOffDate(ds) && getHolidayType(_toYMD(prev)).type === 'holiday';
 }
 
 /* ★ v4.0 신규: 요일별 가중 이동평균 예측 (클라이언트)
@@ -46,26 +82,28 @@ function isPostHolidayDate(ds) {
    - 공휴일 직후 ×0.75 / 징검다리 ×0.60 / 공휴일 전날 ×0.85
    - 데이터 3개 미만 → 평일/주말 전체 평균으로 fallback
 */
-function wmaForecast(dates, getMkValFn, targetDs) {
+function wmaForecast(dates, getMkValFn, targetDs, isEnteredFn) {
     const targetDt = new Date(targetDs + 'T00:00:00');
     const targetDow = targetDt.getDay();           // 0=일 ~ 6=토
-    const isOff = targetDow === 0 || targetDow === 6;
+    const isOff = isCalendarOffDate(targetDs);
 
     /* 동일 요일(평일) or 주말 통합 필터 */
-    const sameDayDates = dates.filter(d => {
+    const trainingDates = dates.filter(d => d < targetDs);
+    const sameDayDates = trainingDates.filter(d => {
         const dow = new Date(d + 'T00:00:00').getDay();
-        return isOff ? (dow === 0 || dow === 6) : dow === targetDow;
+        const off = isCalendarOffDate(d);
+        return isOff ? off : (!off && dow === targetDow);
     });
-    let sameDayVals = sameDayDates.map(d => getMkValFn(d)).filter(v => v > 0);
+    const entered = d => isEnteredFn ? Boolean(isEnteredFn(d)) : getMkValFn(d) > 0;
+    let sameDayVals = sameDayDates.filter(entered).map(d => getMkValFn(d));
 
     /* fallback: 같은 요일 데이터 없을 때 동일 성격(평/주말) 전체 사용 */
     if (sameDayVals.length < 2) {
-        const fbVals = dates
-            .filter(d => { const dow = new Date(d + 'T00:00:00').getDay(); return isOff ? (dow === 0 || dow === 6) : (dow >= 1 && dow <= 5); })
-            .map(d => getMkValFn(d)).filter(v => v > 0);
+        const fbVals = trainingDates
+            .filter(d => { const dow = new Date(d + 'T00:00:00').getDay(); const off = isCalendarOffDate(d); return isOff ? off : (!off && dow >= 1 && dow <= 5); })
+            .filter(entered).map(d => getMkValFn(d));
         if (!fbVals.length) return 0;
         /* 데이터가 아주 적을 때는 단순 평균 */
-        if (fbVals.length < 3) return Math.round(fbVals.reduce((a, b) => a + b, 0) / fbVals.length);
         sameDayVals = fbVals;
     }
 
@@ -87,15 +125,42 @@ function wmaForecast(dates, getMkValFn, targetDs) {
         pred = Math.round(pred * 0.75);            // 공휴일/주말 직후
     } else {
         const nextDt = new Date(targetDt); nextDt.setDate(targetDt.getDate() + 1);
-        const nextDow = nextDt.getDay();
-        if (nextDow === 0 || nextDow === 6) pred = Math.round(pred * 0.85); // 공휴일 전날
+        if (getHolidayType(_toYMD(nextDt)).type === 'holiday') pred = Math.round(pred * 0.85); // 공휴일 전날
     }
     /* ★ v4.4: 환경 및 역사적 보정 계수 적용 */
     const env = getEnvFactor(targetDs);
-    if (env.isHistHoliday) pred = Math.round(pred * 0.25); // 전년도 명절 시즌 반영
     if (env.seasonTag.includes("혹서기")) pred = Math.round(pred * 0.92); // 무더위 식수 감소 반영
 
     return Math.max(0, pred);
+}
+
+function forecastMealKeyEntered(record, mealKey) {
+    const fieldEntered = key => record[`entered_${key}`] != null
+        ? Boolean(record[`entered_${key}`])
+        : record[key] !== '' && record[key] !== null && record[key] !== undefined;
+    if (mealKey === '합계') return ['조식', '중식', '석식', '야식'].some(meal => fieldEntered('DI_' + meal) || fieldEntered('TO_' + meal));
+    if (mealKey === 'DI_합계') return ['조식', '중식', '석식', '야식'].some(meal => fieldEntered('DI_' + meal));
+    if (mealKey === 'TO_합계') return ['조식', '중식', '석식', '야식'].some(meal => fieldEntered('TO_' + meal));
+    if (mealKey.startsWith('DI_') || mealKey.startsWith('TO_')) return fieldEntered(mealKey);
+    return fieldEntered('DI_' + mealKey) || fieldEntered('TO_' + mealKey);
+}
+
+/* GAS와 동일하게 사업장별 WMA를 먼저 계산한 뒤 선택 사업장 합계를 만든다. */
+function wmaForecastForSites(records, siteNames, mealKey, targetDs) {
+    const siteSet = new Set(siteNames || []), meals = mealKey === '합계' ? ['조식', '중식', '석식', '야식'] : [mealKey];
+    const bySite = {};
+    (records || []).forEach(r => {
+        if (r.isBaseline || (siteSet.size && !siteSet.has(r.siteName)) || !r.date) return;
+        if (!bySite[r.siteName]) bySite[r.siteName] = {};
+        bySite[r.siteName][r.date] = {
+            value: meals.reduce((sum, meal) => sum + n(r['DI_' + meal]) + n(r['TO_' + meal]), 0),
+            entered: forecastMealKeyEntered(r, mealKey)
+        };
+    });
+    return Object.keys(bySite).reduce((total, site) => {
+        const byDate = bySite[site], siteDates = Object.keys(byDate).sort();
+        return total + wmaForecast(siteDates, d => byDate[d].value, targetDs, d => byDate[d].entered);
+    }, 0);
 }
 
 /* ★ v4.0 신규: 식수 편차 패턴 감지
@@ -197,8 +262,6 @@ function detectSpecialMealPattern(dates, getMkValFn, wdDates) {
 function getEnvFactor(dateStr) {
     const d = new Date(dateStr + "T00:00:00");
     const month = d.getMonth();
-    const mmdd = dateStr.slice(5);
-    
     // 1. 기온 지수 (서울 월별 평년 기온 기준)
     const avgTemps = [-2.4, 0.4, 5.7, 12.5, 17.8, 22.2, 24.9, 25.7, 21.2, 14.8, 7.2, 0.2];
     const temp = avgTemps[month];
@@ -209,10 +272,7 @@ function getEnvFactor(dateStr) {
     else if (month === 0 || month === 11) seasonTag = "❄️ 혹한기";
     else if (month === 6) seasonTag = "☔ 장마철";
 
-    // 3. 역사적 명절 여부 (2025년 기준 룩업)
-    const isHistHoliday = window._historicalStats2025?.holidays[mmdd] || null;
-
-    return { temp, seasonTag, isHistHoliday };
+    return { temp, seasonTag };
 }
 /* ======================================================
    ★ 저조기 판단 (고정 공휴일 + 동적 검출)
@@ -222,7 +282,7 @@ function getEnvFactor(dateStr) {
 function isLowSeason(dateStr, normalAvg) {
     // 고정 저조기 패턴: 공휴일 직후 n일
     const ht = getHolidayType(dateStr);
-    if (ht.type !== 'workday') return false; // 휴일 자체는 제외
+    if (isCalendarOffDate(dateStr)) return false; // 휴일 자체는 제외
     const prevDay = new Date(dateStr + 'T00:00:00');
     prevDay.setDate(prevDay.getDate() - 1);
     const prevHt = getHolidayType(_toYMD(prevDay));
@@ -370,33 +430,79 @@ function renderTrendReport() {
         return;
     }
 
-    const dates = [...new Set(recsToUse.map(r => r.date))].sort();
-    /* ★ FIX 2-A: 당월 중간값 문제 해결 — 데이터 완성도 표시 */
-    const monthFirstDate = new Date(dates[0] + "T00:00:00");
-    const monthLastDay = new Date(monthFirstDate.getFullYear(), monthFirstDate.getMonth() + 1, 0).getDate();
-    const dataCompleteness = `${dates.length}일/${monthLastDay}일`;
-
-    document.getElementById("trend-date-range").textContent =
-        `[${regionLabel}] ${dates[0]} ~ ${dates[dates.length - 1]} · ${dataCompleteness} ${dates.length < monthLastDay * 0.5 ? '⚠️ 미완성' : '✓'} · ${recsToUse.length}건`;
-    const sites = [...new Set(recsToUse.map(r => r.siteName))];
+    const normalizeSiteKey = site => {
+        const s = String(site || '').trim();
+        if (s === '미래기술캠퍼스') return '미캠';
+        return s.toUpperCase() === 'SDR' ? 'SDR' : s;
+    };
+    const configuredSites = (window.D || [])
+        .filter(row => selRegion === 'ALL' || row['지역'] === selRegion)
+        .map(row => normalizeSiteKey(row['사업장명'])).filter(Boolean);
+    const sites = configuredSites.length
+        ? [...new Set(configuredSites)]
+        : [...new Set(recsToUse.map(r => r.siteName))];
 
     // 사업장 필터 적용
     const sfilt = window._trendSiteFilter || [];
     const activeSites = sfilt.length ? sfilt.filter(s => sites.includes(s)) : sites;
     const filtRecs = sfilt.length ? recsToUse.filter(r => sfilt.includes(r.siteName)) : recsToUse;
-    const selectedSites = sfilt.length ? [...sfilt] : [...new Set(recsToUse.map(r => r.siteName))];
+    const selectedSites = [...activeSites];
+    const siteMasterMap = {};
+    (window.D || []).forEach(row => { siteMasterMap[normalizeSiteKey(row['사업장명'])] = row; });
+    const siteOperatesMeal = (site, meal, dateYmd) => {
+        const master = siteMasterMap[normalizeSiteKey(site)];
+        return masterOperatesMealOnDate(master, meal, dateYmd);
+    };
+    const dates = [...new Set(filtRecs.map(r => r.date).filter(Boolean))].sort();
+    if (!dates.length) {
+        body.innerHTML = `<div class="no-data-msg"><div style="font-size:48px;margin-bottom:16px">📭</div><div style="font-size:15px;font-weight:900;margin-bottom:8px">선택 사업장 데이터 없음</div></div>`;
+        return;
+    }
+
+    /* 선택 필터의 최신 데이터월만 대상으로 완성도를 계산한다. */
+    const latestDate = dates[dates.length - 1];
+    const latestMonth = latestDate.slice(0, 7);
+    const latestMonthDates = dates.filter(d => d.startsWith(latestMonth));
+    const latestMonthObj = new Date(latestDate + "T00:00:00");
+    const monthLastDay = new Date(latestMonthObj.getFullYear(), latestMonthObj.getMonth() + 1, 0).getDate();
+    const dataCompleteness = `${latestMonthDates.length}일/${monthLastDay}일`;
+
+    document.getElementById("trend-date-range").textContent =
+        `[${regionLabel}] ${dates[0]} ~ ${latestDate} · ${dataCompleteness} ${latestMonthDates.length < monthLastDay * 0.5 ? '⚠️ 미완성' : '✓'} · ${filtRecs.length}건`;
 
     // 날짜별 집계 (끼니별)
     const byDate = { 조식: {}, 중식: {}, 석식: {}, 야식: {} };
     const byDateDI = { 조식: {}, 중식: {}, 석식: {}, 야식: {} };
     const byDateTO = { 조식: {}, 중식: {}, 석식: {}, 야식: {} };
+    const enteredSitesByDate = { 조식: {}, 중식: {}, 석식: {}, 야식: {} };
+    const actualEnteredSitesByDate = { 조식: {}, 중식: {}, 석식: {}, 야식: {} };
+    const recordSitesByDate = {}, actualRecordSitesByDate = {};
+    const hasEntered = (r, key) => {
+        const flagKey = `entered_${key}`;
+        if (r[flagKey] != null) return Boolean(r[flagKey]);
+        return Object.prototype.hasOwnProperty.call(r, key) && r[key] !== '' && r[key] != null;
+    };
     filtRecs.forEach(r => {
+        if (!recordSitesByDate[r.date]) recordSitesByDate[r.date] = new Set();
+        recordSitesByDate[r.date].add(r.siteName);
+        if (!r.isBaseline) {
+            if (!actualRecordSitesByDate[r.date]) actualRecordSitesByDate[r.date] = new Set();
+            actualRecordSitesByDate[r.date].add(r.siteName);
+        }
         ['조식', '중식', '석식', '야식'].forEach(m => {
             const di = n(r['DI_' + m]);
             const to = n(r['TO_' + m]);
             byDate[m][r.date] = (byDate[m][r.date] || 0) + di + to;
             byDateDI[m][r.date] = (byDateDI[m][r.date] || 0) + di;
             byDateTO[m][r.date] = (byDateTO[m][r.date] || 0) + to;
+            if (hasEntered(r, 'DI_' + m) || hasEntered(r, 'TO_' + m)) {
+                if (!enteredSitesByDate[m][r.date]) enteredSitesByDate[m][r.date] = new Set();
+                enteredSitesByDate[m][r.date].add(r.siteName);
+                if (!r.isBaseline) {
+                    if (!actualEnteredSitesByDate[m][r.date]) actualEnteredSitesByDate[m][r.date] = new Set();
+                    actualEnteredSitesByDate[m][r.date].add(r.siteName);
+                }
+            }
         });
     });
 
@@ -408,13 +514,37 @@ function renderTrendReport() {
     const mkColor = MK_COLOR[mk] || '#38bdf8';
 
     // 끼니 값 가져오기 (합계 포함)
-    const getMkVal = (d) => mk === '합계'
-        ? (['조식', '중식', '석식', '야식'].reduce((s, m) => s + (byDate[m][d] || 0), 0))
-        : (byDate[mk]?.[d] || 0);
+    const expectedSitesForMeal = (meal, dateYmd) => activeSites.filter(site => siteOperatesMeal(site, meal, dateYmd));
+    const isMealCompleteDate = (d, meal) => {
+        const expected = expectedSitesForMeal(meal, d), entered = enteredSitesByDate[meal]?.[d] || new Set();
+        return hasCompleteSiteCoverage(expected, entered, activeSites, recordSitesByDate[d]);
+    };
+    const isCompleteDate = d => mk === '합계'
+        ? ['조식', '중식', '석식', '야식'].every(meal => isMealCompleteDate(d, meal))
+        : isMealCompleteDate(d, mk);
+    const isActualMealCompleteDate = (d, meal) => {
+        const expected = expectedSitesForMeal(meal, d), entered = actualEnteredSitesByDate[meal]?.[d] || new Set();
+        return hasCompleteSiteCoverage(expected, entered, activeSites, actualRecordSitesByDate[d]);
+    };
+    const isActualCompleteDate = d => mk === '합계'
+        ? ['조식', '중식', '석식', '야식'].every(meal => isActualMealCompleteDate(d, meal))
+        : isActualMealCompleteDate(d, mk);
+    const actualCompleteDates = dates.filter(isActualCompleteDate);
+    const actualRecordDates = Object.keys(actualRecordSitesByDate).sort();
+    const latestActualDate = actualRecordDates.length ? actualRecordDates[actualRecordDates.length - 1] : dates[dates.length - 1];
+    const getMkVal = d => {
+        if (!isCompleteDate(d)) return 0;
+        return mk === '합계'
+            ? ['조식', '중식', '석식', '야식'].reduce((s, m) => s + (byDate[m][d] || 0), 0)
+            : (byDate[mk]?.[d] || 0);
+    };
+    const completeLatestMonthDates = latestMonthDates.filter(isActualCompleteDate);
+    document.getElementById("trend-date-range").textContent =
+        `[${regionLabel}] ${dates[0]} ~ ${latestDate} · ${mk} 운영 대상 사업장 완전입력 ${completeLatestMonthDates.length}일/${latestMonthDates.length}기록일 · ${filtRecs.length}건`;
 
     // 평일/저조기/주말 분류 (★ mk 기준으로 계산)
-    const wdDates = dates.filter(d => getHolidayType(d).type === 'workday');
-    const weDates = dates.filter(d => { const t = getHolidayType(d).type; return t === 'weekend' || t === 'holiday'; });
+    const wdDates = actualCompleteDates.filter(d => !isCalendarOffDate(d));
+    const weDates = actualCompleteDates.filter(d => isCalendarOffDate(d));
     const midVals_wd = wdDates.map(d => getMkVal(d)).filter(v => v > 0);
     const midAvgWd = midVals_wd.length ? midVals_wd.reduce((a, b) => a + b, 0) / midVals_wd.length : 0;
     // 저조기: 선택 끼니 평일 평균의 65% 미만인 날짜
@@ -426,22 +556,43 @@ function renderTrendReport() {
     // ★ v4.11: 평일 평균 산출 기준을 '전체 과거'가 아닌 '최근 30일'로 제한 (계절성 편차 방지)
     // ★ v4.12: 데이터가 있는 마지막 날을 기준으로 앵커링 (기존 new Date() 시 -100% 오류 방지)
     const maxDateStr = dates[dates.length - 1];
-    const todayForFilter = new Date(maxDateStr + "T00:00:00");
-    const minDate30 = new Date(todayForFilter); minDate30.setDate(todayForFilter.getDate() - 30);
-    const minDate60 = new Date(todayForFilter); minDate60.setDate(todayForFilter.getDate() - 60);
-    const min30Str = _toYMD(minDate30);
-    const min60Str = _toYMD(minDate60);
+    const maxDateObj = new Date(maxDateStr + "T00:00:00");
+    const currentYM = maxDateStr.slice(0, 7);
+    const previousMonthObj = new Date(maxDateObj.getFullYear(), maxDateObj.getMonth() - 1, 1);
+    const previousYM = _toYMD(previousMonthObj).slice(0, 7);
+    const currentMonthDays = new Date(maxDateObj.getFullYear(), maxDateObj.getMonth() + 1, 0).getDate();
+    let expectedCurrentWorkdays = 0;
+    for (let day = 1; day <= currentMonthDays; day++) {
+        const ds = `${currentYM}-${String(day).padStart(2, '0')}`;
+        if (!isCalendarOffDate(ds)) expectedCurrentWorkdays++;
+    }
+    const currentMonthWdDates = wdDates.filter(d => d.startsWith(currentYM) && isActualCompleteDate(d));
+    const currentPeriodIsPartial = currentMonthWdDates.length < expectedCurrentWorkdays;
 
     // 최근 30일 평일(정상) 데이터
-    const normalDates30 = normalDates.filter(d => d >= min30Str);
+    const normalDates30 = normalDates.filter(d => d.startsWith(currentYM));
     const normVals = normalDates30.map(d => getMkVal(d)).filter(v => v > 0);
     const normAvg = normVals.length ? Math.round(normVals.reduce((a, b) => a + b, 0) / normVals.length) : 0;
     
     // 전월(31~60일 전) 평일 데이터
-    const normalDatesPrev = normalDates.filter(d => d >= min60Str && d < min30Str);
+    const normalDatesPrevAll = normalDates.filter(d => d.startsWith(previousYM));
+    const normalDatesPrev = currentPeriodIsPartial
+        ? normalDatesPrevAll.slice(0, normalDates30.length)
+        : normalDatesPrevAll;
     const prevVals = normalDatesPrev.map(d => getMkVal(d)).filter(v => v > 0);
     const prevAvg = prevVals.length ? Math.round(prevVals.reduce((a, b) => a + b, 0) / prevVals.length) : 0;
-    const diffMoM = prevAvg > 0 ? Math.round((normAvg - prevAvg) / prevAvg * 100) : null;
+    const previousMonthWdDatesAll = wdDates.filter(d => d.startsWith(previousYM) && isActualCompleteDate(d));
+    const previousMonthWdDates = currentPeriodIsPartial
+        ? previousMonthWdDatesAll.slice(0, currentMonthWdDates.length)
+        : previousMonthWdDatesAll;
+    const currentMonthWdVals = currentMonthWdDates.map(d => getMkVal(d));
+    const previousMonthWdVals = previousMonthWdDates.map(d => getMkVal(d));
+    const currentMonthWdAvg = currentMonthWdVals.length
+        ? currentMonthWdVals.reduce((a, b) => a + b, 0) / currentMonthWdVals.length : 0;
+    const previousMonthWdAvg = previousMonthWdVals.length
+        ? previousMonthWdVals.reduce((a, b) => a + b, 0) / previousMonthWdVals.length : 0;
+    const diffMoM = previousMonthWdAvg > 0
+        ? Math.round((currentMonthWdAvg - previousMonthWdAvg) / previousMonthWdAvg * 100) : null;
 
     const lowVals = lowDates.map(d => getMkVal(d)).filter(v => v > 0);
     const lowAvg = lowVals.length ? Math.round(lowVals.reduce((a, b) => a + b, 0) / lowVals.length) : 0;
@@ -455,7 +606,7 @@ function renderTrendReport() {
     window._trCtx = {
         filtRecs, dates, sites: activeSites, wdDates, lowDates, weDates, normalDates, normalDates30,
         byDate, byDateDI, byDateTO, normAvg, lowAvg, dropPct, mk, mkColor, getMkVal, normVals, regionLabel, selectedSites,
-        prevAvg, diffMoM
+        prevAvg, diffMoM, isCompleteDate, isActualCompleteDate, currentPeriodIsPartial, latestActualDate
     };
     /* patternResult는 renderTabTrend 내부에서 계산되어 지역 스코프에 존재 */
 
@@ -496,8 +647,6 @@ window.clearTrendSiteFilter = function () {
     window._trendSiteFilter = [];
     renderTrendReport();
 };
-
-function _toYMD(dt) { return dt.toISOString().slice(0, 10); }
 
 /* 끼니 + 사업장 필터 패널 HTML */
 function mkFilterHTML(mk, sites, siteFilter) {
@@ -578,9 +727,9 @@ function mkFilterHTML(mk, sites, siteFilter) {
 /* ─────────────── TAB 1: 추이 & 예측 ─────────────── */
 function renderTabTrend(body) {
     /* ★ v3.9 수정: selectedSites destructuring 추가 (기존 누락으로 ReferenceError 발생) */
-    const { filtRecs, dates, sites, wdDates, lowDates, normalDates, byDate,
+    const { filtRecs, dates, sites, wdDates, lowDates, normalDates, normalDates30, byDate,
         normAvg, lowAvg, dropPct, mk, mkColor, getMkVal, normVals, regionLabel, selectedSites,
-        prevAvg, diffMoM } = window._trCtx;
+        prevAvg, diffMoM, isActualCompleteDate, currentPeriodIsPartial } = window._trCtx;
     const sfilt = window._trendSiteFilter || [];
 
     // DI / TO 분리 (모든 끼니 대응)
@@ -603,8 +752,8 @@ function renderTabTrend(body) {
     const diPct = Math.round(totalDI / sumDITO * 100), toPct = 100 - diPct;
 
     // 평일/최저치 평균 데이터 분리 (DI/TO 포함)
-    const normalValsDI = normalDates.map(d => diByDate[d] || 0);
-    const normalValsTO = normalDates.map(d => toByDate[d] || 0);
+    const normalValsDI = normalDates30.map(d => diByDate[d] || 0);
+    const normalValsTO = normalDates30.map(d => toByDate[d] || 0);
     const normAvgDI = normalValsDI.length ? Math.round(normalValsDI.reduce((a, b) => a + b, 0) / normalValsDI.length) : 0;
     const normAvgTO = normalValsTO.length ? Math.round(normalValsTO.reduce((a, b) => a + b, 0) / normalValsTO.length) : 0;
     const normTotal = normAvgDI + normAvgTO;
@@ -624,8 +773,11 @@ function renderTabTrend(body) {
     const joVals = wdDates.map(d => byDate['조식']?.[d] || 0).filter(v => v > 0);
     const joAvg = joVals.length ? Math.round(joVals.reduce((a, b) => a + b, 0) / joVals.length) : 0;
 
-    // ★ v4.9: 최근 2주 추이 (평일기준 10일)
-    const rec10wd = wdDates.filter(d => !lowDates.includes(d)).slice(-10).map(d => getMkVal(d)).filter(v => v > 0);
+    // 데이터 최종일을 포함한 최근 14개 달력일의 정상 평일만 사용한다.
+    const trendEndDate = new Date(dates[dates.length - 1] + 'T00:00:00');
+    const trendStartDate = new Date(trendEndDate); trendStartDate.setDate(trendEndDate.getDate() - 13);
+    const trendStartYmd = _toYMD(trendStartDate);
+    const rec10wd = wdDates.filter(d => d >= trendStartYmd && !lowDates.includes(d)).map(d => getMkVal(d)).filter(v => v > 0);
     const r10avg = rec10wd.length ? Math.round(rec10wd.reduce((a, b) => a + b, 0) / rec10wd.length) : normTotal;
     const trendPct = normTotal > 0 ? ((r10avg - normTotal) / normTotal * 100).toFixed(1) : 0;
     const trendCls = trendPct > 0 ? '#34d399' : trendPct < 0 ? '#f87171' : '#fbbf24';
@@ -645,21 +797,21 @@ function renderTabTrend(body) {
     if (aiAccuracy == null && normalDates.length >= 6) {
         const testN = Math.min(4, Math.floor(normalDates.length / 3));
         if (testN > 0) {
-            const trainDates = normalDates.slice(0, -testN);
             const testDatesList = normalDates.slice(-testN);
-            let sumAPE = 0, validN = 0;
+            let sumAbsError = 0, sumActual = 0, validN = 0;
             testDatesList.forEach(td => {
                 /* WMA 백테스트: 훈련 데이터만으로 예측 */
-                const pred = wmaForecast(trainDates, d => getMkVal(d), td);
+                const pred = wmaForecastForSites(filtRecs, selectedSites, mk, td);
                 const actual = getMkVal(td);
                 if (actual > 0 && pred > 0) {
-                    sumAPE += Math.abs(actual - pred) / actual;
+                    sumAbsError += Math.abs(actual - pred);
+                    sumActual += actual;
                     validN++;
                 }
             });
-            if (validN > 0) {
-                const mape = sumAPE / validN * 100;
-                aiAccuracy = Math.max(0, Math.round(100 - mape));
+            if (validN > 0 && sumActual > 0) {
+                const wape = sumAbsError / sumActual * 100;
+                aiAccuracy = Math.max(0, Math.round(100 - wape));
             }
         }
     }
@@ -679,10 +831,10 @@ function renderTabTrend(body) {
     for (let i = 1; i <= 7; i++) {
         const fd = new Date(todayObj); fd.setDate(todayObj.getDate() + i);
         const ds = _toYMD(fd), ht = getHolidayType(ds);
-        const isOff = ht.type !== 'workday';
+        const isOff = isCalendarOffDate(ds);
         const storedPred = getForecastValueForDate(selectedSites, mk, ds);
         /* WMA로 클라이언트 자체 예측 (GAS 저장값 없을 때) */
-        const wmaVal = wmaForecast(dates, getMkVal, ds);
+        const wmaVal = wmaForecastForSites(filtRecs, selectedSites, mk, ds);
         const fv = storedPred > 0 ? storedPred : wmaVal;
         foreRows.push({ ds, fv, wmaVal, ht, isOff, isStored: storedPred > 0 });
     }
@@ -725,21 +877,32 @@ function renderTabTrend(body) {
     let momHtml = "";
     if (diffMoM !== null) {
         const momColor = diffMoM >= 0 ? "#34d399" : "#f87171";
-        momHtml = `<div class="kpi-v2 success" style="border-color:${momColor}44"><div class="kv2-lbl" style="white-space:nowrap">전월 대비 (MoM)</div><div class="kv2-val" style="color:${momColor}">${diffMoM >= 0 ? "+" : ""}${diffMoM}%</div><div class="kv2-sub">직전 30일 평일 대비</div></div>`;
+        momHtml = `<div class="kpi-v2 success" style="border-color:${momColor}44"><div class="kv2-lbl" style="white-space:nowrap">전월 대비 (MoM)</div><div class="kv2-val" style="color:${momColor}">${diffMoM >= 0 ? "+" : ""}${diffMoM}%</div><div class="kv2-sub">전월 동일 유효일수 평일 평균 대비</div></div>`;
     }
 
     /* ★ v4.4: 전년 대비(YoY) 비교 요약 계산 */
     let yoyHtml = "";
-    if (window._historicalStats2025 && selectedSites.length === 1) {
-        let sName = selectedSites[0];
-        if (sName === "미캠") sName = "미래기술캠퍼스";
-        const histM = todayObj.getMonth(); // 당월 기준
-        const histVal = window._historicalStats2025.stats[sName]?.[mk]?.[histM] || 0;
-        const currVal = normAvg;
-        if (histVal > 0) {
+    if (selectedSites.length === 1) {
+        const currentYear = todayObj.getFullYear();
+        const priorYear = currentYear - 1;
+        const monthText = String(todayObj.getMonth() + 1).padStart(2, '0');
+        const currentYearMonth = `${currentYear}-${monthText}`;
+        const priorYearMonth = `${priorYear}-${monthText}`;
+        const currentActualDates = wdDates.filter(d => d.startsWith(currentYearMonth) && isActualCompleteDate(d));
+        const priorActualDatesAll = wdDates.filter(d => d.startsWith(priorYearMonth) && isActualCompleteDate(d));
+        const priorActualDates = currentPeriodIsPartial
+            ? priorActualDatesAll.slice(0, currentActualDates.length)
+            : priorActualDatesAll;
+        const currentActualValues = currentActualDates.map(d => getMkVal(d));
+        const priorActualValues = priorActualDates.map(d => getMkVal(d));
+        const currVal = currentActualValues.length
+            ? currentActualValues.reduce((a, b) => a + b, 0) / currentActualValues.length : 0;
+        const histVal = priorActualValues.length
+            ? priorActualValues.reduce((a, b) => a + b, 0) / priorActualValues.length : 0;
+        if (histVal > 0 && currVal > 0) {
             const diff = Math.round((currVal - histVal) / histVal * 100);
             const color = diff >= 0 ? "#34d399" : "#f87171";
-            yoyHtml = `<div class="kpi-v2 success" style="border-color:${color}44"><div class="kv2-lbl" style="white-space:nowrap">전년 대비 (YoY)</div><div class="kv2-val" style="color:${color}">${diff >= 0 ? "+" : ""}${diff}%</div><div class="kv2-sub">2025년 ${histM+1}월 동월 평균 대비</div></div>`;
+            yoyHtml = `<div class="kpi-v2 success" style="border-color:${color}44"><div class="kv2-lbl" style="white-space:nowrap">전년 대비 (YoY)</div><div class="kv2-val" style="color:${color}">${diff >= 0 ? "+" : ""}${diff}%</div><div class="kv2-sub">${priorYear}년 ${Number(monthText)}월 실측 동월 평균 대비</div></div>`;
         }
     }
 
@@ -898,12 +1061,10 @@ function renderTabTrend(body) {
                                                     else {
                                                         const nextDate = new Date(clickDate + 'T00:00:00');
                                                         nextDate.setDate(nextDate.getDate() + 1);
-                                                        const nextDow = nextDate.getDay();
-                                                        if (nextDow === 0 || nextDow === 6) corrFactors.push('×0.85 (휴일 전날)');
+                                                        if (getHolidayType(_toYMD(nextDate)).type === 'holiday') corrFactors.push('×0.85 (공휴일 전날)');
                                                     }
                                                     const forecastEnv = getEnvFactor(clickDate);
                                                     if (forecastEnv.seasonTag.includes('혹서기')) corrFactors.push('×0.92 (혹서기)');
-                                                    if (!foreVal.isStored && forecastEnv.isHistHoliday) corrFactors.push('×0.25 (전년도 휴일)');
                                                     const corrFactor = corrFactors.join(' · ');
                                                     wmaNote = `<div style="margin-top:6px;font-size:9px;color:var(--dim);line-height:1.6">
                                                         🤖 ${foreVal.isStored ? '저장 예측' : 'WMA 예측'} · ${dayOfWeek}요일 과거 데이터 가중 평균
@@ -914,7 +1075,6 @@ function renderTabTrend(body) {
                                                 const env = getEnvFactor(clickDate);
                                                 let envHtml = `<div style="margin-top:8px;padding:8px;background:rgba(255,255,255,.03);border-radius:6px;font-size:10px;color:var(--dim)">
                                                     🌡️ 기온: ${env.temp}℃ ${env.seasonTag ? ` | ${env.seasonTag}` : ""}
-                                                    ${env.isHistHoliday ? `<br>🗓️ 전년도 이슈: <strong style="color:#fbbf24">${env.isHistHoliday} 기간</strong>` : ""}
                                                 </div>`;
 
                                                 infoBox.innerHTML = `
@@ -955,7 +1115,7 @@ function renderTabTrend(body) {
                                 annotations: {
                                     xaxis: [{
                                         x: chartDates[chartDates.length - 1].slice(5) + (
-                                            getHolidayType(chartDates[chartDates.length - 1]).type !== 'workday'
+                                            isCalendarOffDate(chartDates[chartDates.length - 1])
                                                 ? '\n' + (getHolidayType(chartDates[chartDates.length - 1]).type === 'weekend' ? '🟡' : '🔴')
                                                 : (lowDates.includes(chartDates[chartDates.length - 1]) ? '\n🟠' : '')
                                         ),
@@ -1394,7 +1554,7 @@ function renderTabSites(body) {
 
 /* ─────────────── TAB 4: 운영 리포트 ─────────────── */
 function renderTabReport(body) {
-    const { filtRecs, dates, sites, normalDates, lowDates, byDate, mk, mkColor, normAvg, regionLabel, getMkVal, selectedSites } = window._trCtx;
+    const { filtRecs, dates, sites, normalDates, lowDates, byDate, mk, mkColor, normAvg, regionLabel, getMkVal, selectedSites, isActualCompleteDate, latestActualDate } = window._trCtx;
     const sfilt = window._trendSiteFilter || [];
     const wdValsFr = normalDates.map(d => getMkVal(d)).filter(v => v > 0);
     const weVals = (window._trCtx.weDates || []).map(d => getMkVal(d)).filter(v => v > 0);
@@ -1403,9 +1563,8 @@ function renderTabReport(body) {
     const wdAvg = wdValsFr.length ? wdValsFr.reduce((a, b) => a + b, 0) / wdValsFr.length : 0;
     const weAvg = weVals.length ? weVals.reduce((a, b) => a + b, 0) / weVals.length : wdAvg * 0.4;
     const lastDate = new Date(dates[dates.length - 1] + 'T00:00:00');
-    /* ★ AI 주간 단위 예측 (Calendar Week - 월~일) - 오늘 날짜(System) 기준 28일치 */
-    const sysToday = new Date();
-    const todayStr = _toYMD(sysToday);
+    /* 분석 기준일은 필터된 실적의 마지막 날짜로 고정한다. */
+    const todayStr = dates[dates.length - 1];
     
     const getMon = d => {
         const nd = new Date(d + 'T00:00:00');
@@ -1433,10 +1592,10 @@ function renderTabReport(body) {
                 val = getMkVal(ds) || 0;
             } else {
                 const storedPred = getForecastValueForDate(selectedSites, mk, ds);
-                val = storedPred > 0 ? storedPred : wmaForecast(dates, getMkVal, ds);
+                val = storedPred > 0 ? storedPred : wmaForecastForSites(filtRecs, selectedSites, mk, ds);
             }
             
-            if (ht.type === 'workday') { wdSum += val; wdCount++; }
+            if (!isCalendarOffDate(ds)) { wdSum += val; wdCount++; }
             dailyData.push({ ds, val, ht, isPast, isToday });
         }
         
@@ -1449,23 +1608,24 @@ function renderTabReport(body) {
     const direction = wdS > 2 ? '📈 증가 추세' : wdS < -2 ? '📉 감소 추세' : '➡️ 안정적 유지';
 
     /* ★ DI/TO 분리 데이터 (Tab4 전용) */
-    const rptDiByDate = {}, rptToByDate = {};
     const rptMeals = mk === '합계' ? ['조식', '중식', '석식', '야식'] : [mk];
-    filtRecs.forEach(r => {
-        rptMeals.forEach(m => {
-            rptDiByDate[r.date] = (rptDiByDate[r.date] || 0) + n(r['DI_' + m]);
-            rptToByDate[r.date] = (rptToByDate[r.date] || 0) + n(r['TO_' + m]);
-        });
-    });
-    const rptDates7 = dates.slice(-7);
-    /* ★ v4.1 FIX: DI/TO KPI는 최근 7일 데이터만 사용 */
+    const { diByDate: rptDiByDate, toByDate: rptToByDate } = aggregateActualDitoByDate(filtRecs, rptMeals);
+    const rptDates7 = recentCalendarDates(latestActualDate, 7);
+    /* 최종 실적일을 포함한 최근 7개 달력일을 고정 사용 */
+    const rptCompleteDates7 = rptDates7.filter(isActualCompleteDate);
     const rptDiByDate7 = {}, rptToByDate7 = {};
-    rptDates7.forEach(d => { rptDiByDate7[d] = rptDiByDate[d] || 0; rptToByDate7[d] = rptToByDate[d] || 0; });
-    const rptTotalDI_7 = rptDates7.reduce((a, d) => a + (rptDiByDate[d] || 0), 0);
-    const rptTotalTO_7 = rptDates7.reduce((a, d) => a + (rptToByDate[d] || 0), 0);
-    const rptSum7 = rptTotalDI_7 + rptTotalTO_7 || 1;
-    const rptDiPct7 = Math.round(rptTotalDI_7 / rptSum7 * 100);
-    const rptToPct7 = 100 - rptDiPct7;
+    rptDates7.forEach(d => {
+        const complete = rptCompleteDates7.includes(d);
+        rptDiByDate7[d] = complete ? (rptDiByDate[d] || 0) : null;
+        rptToByDate7[d] = complete ? (rptToByDate[d] || 0) : null;
+    });
+    const rptTotalDI_7 = rptCompleteDates7.reduce((a, d) => a + (rptDiByDate[d] || 0), 0);
+    const rptTotalTO_7 = rptCompleteDates7.reduce((a, d) => a + (rptToByDate[d] || 0), 0);
+    const rptWindowComplete = rptCompleteDates7.length === rptDates7.length;
+    const rptSum7 = rptTotalDI_7 + rptTotalTO_7;
+    const rptHasVolume7 = rptSum7 > 0;
+    const rptDiPct7 = rptHasVolume7 ? Math.round(rptTotalDI_7 / rptSum7 * 100) : null;
+    const rptToPct7 = rptHasVolume7 ? 100 - rptDiPct7 : null;
     /* 전체 기간 DI/TO (예측 비율용) */
     const rptTotalDI = Object.values(rptDiByDate).reduce((a, b) => a + b, 0);
     const rptTotalTO = Object.values(rptToByDate).reduce((a, b) => a + b, 0);
@@ -1479,11 +1639,11 @@ function renderTabReport(body) {
     <!-- ★ 일반식 vs 테이크아웃 분리 차트 -->
     <div class="ch-panel">
         <div class="ch-panel-title" style="white-space:nowrap">🍱 D/I vs T/O 분리 분석 <span style="font-size:9px;color:var(--dim);font-weight:400">${mk} · 최근 7일</span></div>
-        <div class="ch-panel-sub">일반식과 테이크아웃 식수를 분리하여 운영 구성을 분석합니다</div>
+        <div class="ch-panel-sub">최종 실적일 포함 최근 7개 달력일 중 ${mk} 운영 대상 사업장이 완전 입력된 날짜의 전체 사업장 합산 식수입니다</div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
-            <div class="kpi-v2 accent"><div class="kv2-lbl" style="white-space:nowrap">일반식(D/I)</div><div class="kv2-val" style="color:#38bdf8">${rptTotalDI_7.toLocaleString()}<span style="font-size:11px;opacity:.7">식</span></div><div class="kv2-sub">${rptDiPct7}%</div></div>
-            <div class="kpi-v2 warning"><div class="kv2-lbl" style="white-space:nowrap">T/O</div><div class="kv2-val" style="color:#fbbf24">${rptTotalTO_7.toLocaleString()}<span style="font-size:11px;opacity:.7">식</span></div><div class="kv2-sub">${rptToPct7}%</div></div>
-            <div class="kpi-v2 success"><div class="kv2-lbl" style="white-space:nowrap">전체 합계</div><div class="kv2-val" style="color:#34d399">${(rptTotalDI_7 + rptTotalTO_7).toLocaleString()}<span style="font-size:11px;opacity:.7">식</span></div><div class="kv2-sub">${rptDates7.length}일 기준</div></div>
+            <div class="kpi-v2 accent"><div class="kv2-lbl" style="white-space:nowrap">일반식(D/I)</div><div class="kv2-val" style="color:#38bdf8">${rptWindowComplete ? rptTotalDI_7.toLocaleString() + '<span style="font-size:11px;opacity:.7">식</span>' : '-'}</div><div class="kv2-sub">${rptWindowComplete ? (rptHasVolume7 ? rptDiPct7 + '%' : '합계 0식') : '7일 입력 미완료'}</div></div>
+            <div class="kpi-v2 warning"><div class="kv2-lbl" style="white-space:nowrap">T/O</div><div class="kv2-val" style="color:#fbbf24">${rptWindowComplete ? rptTotalTO_7.toLocaleString() + '<span style="font-size:11px;opacity:.7">식</span>' : '-'}</div><div class="kv2-sub">${rptWindowComplete ? (rptHasVolume7 ? rptToPct7 + '%' : '합계 0식') : '7일 입력 미완료'}</div></div>
+            <div class="kpi-v2 success"><div class="kv2-lbl" style="white-space:nowrap">전체 합계</div><div class="kv2-val" style="color:#34d399">${rptWindowComplete ? (rptTotalDI_7 + rptTotalTO_7).toLocaleString() + '<span style="font-size:11px;opacity:.7">식</span>' : '-'}</div><div class="kv2-sub">완전입력 ${rptCompleteDates7.length}/${rptDates7.length}일 기준</div></div>
         </div>
         <div style="width:100%;margin-bottom:8px">
             <div id="chartRptDITO" class="ch-apex"></div>
@@ -1526,7 +1686,8 @@ function renderTabReport(body) {
     
     <!-- ★ 신규: AI 예측 정확도 정밀 분석 박스 -->
     ${(() => {
-        const uniqueRegions = [...new Set((window.raw_data||[]).map(r => r.region).filter(Boolean))].sort();
+        const accuracySource = window._gasPerfCache || [];
+        const uniqueRegions = [...new Set(accuracySource.map(r => r.region).filter(Boolean))].sort();
         const regionOpts = uniqueRegions.map(rg => `<option value="${rg}" ${rg === regionLabel ? 'selected' : ''}>${rg}</option>`).join('');
         return `
         <div class="ch-panel" id="panel-accuracy" style="border:1px solid rgba(56,189,248,.3)">
@@ -1626,15 +1787,15 @@ function renderTabReport(body) {
                 ...APEX_BASE,
                 chart: { ...APEX_BASE.chart, type: 'bar', height: 220, stacked: true },
                 series: [
-                    { name: '일반식(D/I)', data: rptDates7.map(d => rptDiByDate[d] || 0) },
-                    { name: '테이크아웃(T/O)', data: rptDates7.map(d => rptToByDate[d] || 0) }
+                    { name: '일반식(D/I)', data: rptDates7.map(d => rptDiByDate7[d]) },
+                    { name: '테이크아웃(T/O)', data: rptDates7.map(d => rptToByDate7[d]) }
                 ],
                 colors: ['#38bdf8', '#fbbf24'],
                 plotOptions: { bar: { borderRadius: 3, columnWidth: '55%' } },
                 xaxis: { ...APEX_BASE.xaxis, categories: rptDates7.map(d => { const ht = getHolidayType(d).type; return d.slice(5) + (ht !== 'workday' ? '\n' + (ht === 'weekend' ? '🟡' : '🔴') : ''); }) },
                 yaxis: { ...APEX_BASE.yaxis, min: 0, labels: { ...APEX_BASE.yaxis.labels, formatter: v => v.toLocaleString() } },
                 dataLabels: { enabled: false },
-                tooltip: { ...APEX_BASE.tooltip, y: { formatter: v => v.toLocaleString() + '식' } },
+                tooltip: { ...APEX_BASE.tooltip, y: { formatter: v => v == null ? '미완전 입력' : v.toLocaleString() + '식' } },
                 legend: { ...APEX_BASE.legend, position: 'top' },
             }); cDITO.render(); window._apexCharts.push(cDITO);
         } catch (e) { }
@@ -1929,14 +2090,15 @@ window.renderAccuracyBox = function() {
     let targetMk = mealFilt;
     if (typeFilt) targetMk = typeFilt + mealFilt;
     
-    let accSites = [...new Set((window.raw_data||[]).map(r => r.siteName))];
+    const accuracySource = window._gasPerfCache || [];
+    let accSites = [...new Set(accuracySource.map(r => r.siteName).filter(Boolean))];
     if (regionFilt !== 'ALL') {
-        const regionSites = window.raw_data.filter(r => (r.region||'') === regionFilt).map(r => r.siteName);
+        const regionSites = accuracySource.filter(r => (r.region||'') === regionFilt).map(r => r.siteName);
         accSites = [...new Set(regionSites)];
     }
     
-    const agg = aggregateForecastByDate(accSites, targetMk);
-    const dates = Object.keys(agg).filter(k => agg[k].hasActual).sort();
+    const agg = aggregateForecastByDate(accSites, targetMk, true);
+    const dates = Object.keys(agg).filter(k => agg[k].completeActual).sort();
     
     const box = document.getElementById('acc-box-content');
     if (!box) return;
@@ -1952,22 +2114,21 @@ window.renderAccuracyBox = function() {
     
     dates.forEach(d => {
         const row = agg[d];
-        if (row.actual > 0) {
-            totalActual += row.actual;
-            totalPred += row.pred;
-            totalError += Math.abs(row.pred - row.actual);
-        }
+        totalActual += row.actual;
+        totalPred += row.pred;
+        totalError += row.absError;
     });
     
-    const accScore = totalActual > 0 ? Math.max(0, 100 - (totalError / totalActual * 100)) : 0;
-    const accClass = accScore >= 90 ? 'success' : accScore >= 80 ? 'warning' : 'danger';
-    const accColor = accScore >= 90 ? '#34d399' : accScore >= 80 ? '#fbbf24' : '#f87171';
+    const hasWape = totalActual > 0;
+    const accScore = hasWape ? Math.max(0, 100 - (totalError / totalActual * 100)) : null;
+    const accClass = accScore == null ? 'warning' : accScore >= 90 ? 'success' : accScore >= 80 ? 'warning' : 'danger';
+    const accColor = accScore == null ? 'var(--dim)' : accScore >= 90 ? '#34d399' : accScore >= 80 ? '#fbbf24' : '#f87171';
     
     box.innerHTML = `
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
             <div class="kpi-v2 ${accClass}" style="padding:16px;display:flex;flex-direction:column;justify-content:center;align-items:center">
                 <div class="kv2-lbl" style="font-size:11px;margin-bottom:6px">${targetMk.replace('_', ' ')} 예측 정확도</div>
-                <div class="kv2-val" style="color:${accColor};font-size:24px">${accScore.toFixed(1)}<span style="font-size:14px;opacity:.7">%</span></div>
+                <div class="kv2-val" style="color:${accColor};font-size:24px">${accScore == null ? '산출불가' : accScore.toFixed(1) + '<span style="font-size:14px;opacity:.7">%</span>'}</div>
             </div>
             <div style="background:rgba(255,255,255,.02);border-radius:8px;padding:12px;font-size:11px;display:flex;flex-direction:column;gap:6px">
                 <div style="display:flex;justify-content:space-between;color:var(--dim)"><span>비교 일수</span><strong style="color:#fff">${dates.length}일</strong></div>
