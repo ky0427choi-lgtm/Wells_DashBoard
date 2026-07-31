@@ -745,7 +745,7 @@ function mkFilterHTML(mk, sites, siteFilter) {
         </div>`;
     }).join('');
 
-    const clearBtn = siteFilter.length ? `<button onclick="clearTrendSiteFilter()" style="font-size:9px;padding:2px 6px;border-radius:12px;border:1px solid #f43f5e44;background:#f43f5e12;color:#f43f5e;cursor:pointer;white-space:nowrap;margin-left:auto">✕ 초기화</button>` : '';
+    const clearBtn = siteFilter.length ? `<button onclick="clearTrendSiteFilter()" style="font-size:9px;padding:2px 6px;border-radius:12px;border:1px solid #f43f5e44;background:#f43f5e12;color:#f43f5e;cursor:pointer;white-space:nowrap">✕ 초기화</button>` : '';
     const selectedCount = siteFilter.filter(s => sites.includes(s)).length;
     const selectionText = selectedCount ? `선택 ${selectedCount}개 합산` : `전체 ${sites.length}개 합산`;
 
@@ -760,10 +760,15 @@ function mkFilterHTML(mk, sites, siteFilter) {
         <span style="width:100%;height:1px;background:var(--border);margin:2px 0"></span>
         <!-- 사업장 지역별 슬라이더 -->
         <div style="display:flex;flex-direction:column;gap:6px;width:100%">
-            <div style="display:flex;align-items:center;margin-bottom:2px">
-                <span style="font-size:9px;color:var(--dim);font-weight:700">사업장 필터 · 복수 선택 가능 · 지역 합산</span>
-                <span style="font-size:9px;color:#34d399;font-weight:800;margin-left:6px;white-space:nowrap">${selectionText}</span>
-                ${clearBtn}
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;flex-flow:row wrap;margin-bottom:2px">
+                <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+                    <span style="font-size:9px;color:var(--dim);font-weight:800;white-space:nowrap">사업장 필터</span>
+                    <span style="font-size:9px;color:var(--muted);font-weight:700;white-space:nowrap">복수 선택 · 지역 합산</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:4px;margin-left:auto;flex-shrink:0">
+                    <span style="font-size:9px;color:#34d399;font-weight:800;white-space:nowrap">${selectionText}</span>
+                    ${clearBtn}
+                </div>
             </div>
             ${siteRowsHtml}
         </div>
