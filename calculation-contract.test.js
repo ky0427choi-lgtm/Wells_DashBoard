@@ -217,6 +217,15 @@ assert.equal(vm.runInContext("actualMapFromPerfObject_(legacyZeroPerf)['중식']
 assert.equal(vm.runInContext("normYmStr('2026-6')", server), '2026-06');
 assert.equal(vm.runInContext("canonicalSiteName_('미래기술캠퍼스')", server), '미캠');
 assert.equal(vm.runInContext("canonicalSiteName_('sdr')", server), 'SDR');
+server.monthlyAliasSheet = {
+    getDataRange: () => ({ getValues: () => [
+        ['일평균_중식', '일평균_TO중식'],
+        [7092, 1742]
+    ] })
+};
+server.monthlyAliasRows = vm.runInContext('sheetToObj(monthlyAliasSheet)', server);
+assert.equal(server.monthlyAliasRows[0]['일평균_중식'], 7092, 'TO lunch average must not overwrite the total lunch average');
+assert.equal(server.monthlyAliasRows[0]['일평균_TO중식'], 1742, 'TO lunch average must remain available as its own metric');
 server.authPayload = { role: 'A', region: '기흥지역', site: 'ALL', allowedSites: 'ALL' };
 assert.equal(vm.runInContext("_isRequestedSiteAuthorized_(authPayload, 'SR1', '기흥지역')", server), true, 'A/B ALL scope must not block regional save');
 server.authPayload = { role: 'B', region: '기흥지역', site: '', allowedSites: '' };

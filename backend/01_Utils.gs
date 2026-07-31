@@ -35,7 +35,8 @@ function sheetToObj(sheet) {
         else if(nh.indexOf("야식")>=0) o[isWeekend?"TO_야식(주말)":"TO_야식"]=r[i];
       }
 
-      if(nh.indexOf("일평균")>=0){
+      /* 일평균_TO중식은 별도 지표다. 일반 중식 평균 별칭을 덮어쓰지 않는다. */
+      if(nh.indexOf("일평균")>=0 && nh.indexOf("TO")<0){
         if(nh.indexOf("조식")>=0) o["일평균_조식"]=r[i]; else if(nh.indexOf("중식")>=0) o["일평균_중식"]=r[i]; else if(nh.indexOf("석식")>=0) o["일평균_석식"]=r[i]; else if(nh.indexOf("야식")>=0) o["일평균_야식"]=r[i];
       }
       if(nh.indexOf("최고")>=0 && nh.indexOf("중식")>=0) o["최고_중식"]=r[i];
