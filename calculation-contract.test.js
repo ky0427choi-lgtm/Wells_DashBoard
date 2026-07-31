@@ -71,6 +71,39 @@ function createServerContext() {
 const browser = createBrowserContext();
 const server = createServerContext();
 
+browser.availableTrendSites = ['A', 'B', 'C'];
+browser.selectedTrendSites = ['A'];
+browser.trendSelectionResult = vm.runInContext('resolveTrendSiteSelection(availableTrendSites, selectedTrendSites)', browser);
+assert.deepEqual(Array.from(browser.trendSelectionResult.availableSites), ['A', 'B', 'C'], 'selecting one site must not remove other selectable sites');
+assert.deepEqual(Array.from(browser.trendSelectionResult.activeSites), ['A'], 'calculations must still use only selected sites');
+browser.selectedTrendSites = ['A', 'B'];
+browser.trendSelectionResult = vm.runInContext('resolveTrendSiteSelection(availableTrendSites, selectedTrendSites)', browser);
+assert.deepEqual(Array.from(browser.trendSelectionResult.activeSites), ['A', 'B'], 'multiple selected sites must remain active together');
+browser.selectedTrendSites = ['OUT_OF_SCOPE'];
+browser.trendSelectionResult = vm.runInContext('resolveTrendSiteSelection(availableTrendSites, selectedTrendSites)', browser);
+assert.deepEqual(Array.from(browser.trendSelectionResult.selectedFilter), [], 'out-of-scope sites must be removed from the effective filter');
+assert.deepEqual(Array.from(browser.trendSelectionResult.activeSites), ['A', 'B', 'C'], 'an empty in-scope intersection must fall back to the current scope');
+browser.trendSiteRegionMap = { A: 'R1', B: 'R1', C: 'R2' };
+browser.regionSelectionResult = vm.runInContext("nextTrendRegionSiteFilter(availableTrendSites, trendSiteRegionMap, 'R1', ['C'])", browser);
+assert.deepEqual(Array.from(browser.regionSelectionResult), ['A', 'B'], 'region selection must select every site in that region for aggregation');
+browser.regionSelectionResult = vm.runInContext("nextTrendRegionSiteFilter(availableTrendSites, trendSiteRegionMap, 'R1', ['A','B'])", browser);
+assert.deepEqual(Array.from(browser.regionSelectionResult), [], 'selecting the same complete region again must return to all-site view');
+
+const trendReportSource = read('frontend/assets/js/08-trend-report.js');
+assert.match(trendReportSource, /sites: activeSites, availableSites: siteSelection\.availableSites/, 'trend context must separate calculation sites from selectable sites');
+assert.equal((trendReportSource.match(/mkFilterHTML\(mk, availableSites \|\| sites, sfilt\)/g) || []).length, 3, 'trend, site, and report tabs must retain all selectable sites');
+assert.match(trendReportSource, /mkFilterHTML\(mk, window\._trCtx\.availableSites \|\| window\._trCtx\.sites, sfilt\)/, 'daily tab must retain all selectable sites');
+assert.match(trendReportSource, /mkFilterHTML\(window\._mkSel \|\| '중식', siteSelection\.availableSites, validSiteFilter\)/, 'no-data selection must keep the full filter controls visible');
+browser.D = [
+    { 사업장명: 'A', 지역: 'R1' },
+    { 사업장명: 'B', 지역: 'R1' },
+    { 사업장명: 'C', 지역: 'R2' }
+];
+browser.emptySelectionFilterHtml = vm.runInContext("mkFilterHTML('중식', availableTrendSites, ['C'])", browser);
+assert.match(browser.emptySelectionFilterHtml, />A<\/button>/, 'no-data filter must still render site A');
+assert.match(browser.emptySelectionFilterHtml, />B<\/button>/, 'no-data filter must still render site B');
+assert.match(browser.emptySelectionFilterHtml, />C<\/button>/, 'no-data filter must still render the selected site C');
+
 function forecastBoth(dates, target, value = 100) {
     browser.testDates = dates;
     browser.testValues = Object.fromEntries(dates.map(d => [d, value]));

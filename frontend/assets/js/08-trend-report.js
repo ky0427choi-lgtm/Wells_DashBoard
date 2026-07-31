@@ -293,6 +293,28 @@ function isLowSeason(dateStr, normalAvg) {
 window._trendSiteFilter = window._trendSiteFilter || [];
 window._mergedTrendCache = null; // 병합 데이터 캐시
 
+/* 선택 가능한 전체 사업장과 실제 계산 대상 사업장을 분리한다. */
+function resolveTrendSiteSelection(availableSites, siteFilter) {
+    const available = [...new Set((availableSites || []).filter(Boolean))];
+    const availableSet = new Set(available);
+    const selected = [...new Set((siteFilter || []).filter(site => availableSet.has(site)))];
+    return {
+        availableSites: available,
+        selectedFilter: selected,
+        activeSites: selected.length ? selected : available
+    };
+}
+
+/* 지역 합산 선택: 해당 지역 전체를 선택하고, 같은 지역을 다시 누르면 전체 보기로 복귀한다. */
+function nextTrendRegionSiteFilter(availableSites, siteRegionMap, region, currentFilter) {
+    const available = [...new Set((availableSites || []).filter(Boolean))];
+    const regionSites = available.filter(site => siteRegionMap?.[site] === region);
+    if (!regionSites.length) return [...new Set(currentFilter || [])];
+    const current = [...new Set((currentFilter || []).filter(site => available.includes(site)))];
+    const isExactRegion = current.length === regionSites.length && regionSites.every(site => current.includes(site));
+    return isExactRegion ? [] : regionSites;
+}
+
 /**
  * ★ v4.3: 베이스라인(과거분) + 실시간 캐시(최신분) 데이터를 병합합니다.
  */
@@ -444,8 +466,11 @@ function renderTrendReport() {
 
     // 사업장 필터 적용
     const sfilt = window._trendSiteFilter || [];
-    const activeSites = sfilt.length ? sfilt.filter(s => sites.includes(s)) : sites;
-    const filtRecs = sfilt.length ? recsToUse.filter(r => sfilt.includes(r.siteName)) : recsToUse;
+    const siteSelection = resolveTrendSiteSelection(sites, sfilt);
+    const activeSites = siteSelection.activeSites;
+    const validSiteFilter = siteSelection.selectedFilter;
+    if (validSiteFilter.length !== sfilt.length) window._trendSiteFilter = validSiteFilter;
+    const filtRecs = validSiteFilter.length ? recsToUse.filter(r => validSiteFilter.includes(r.siteName)) : recsToUse;
     const selectedSites = [...activeSites];
     const siteMasterMap = {};
     (window.D || []).forEach(row => { siteMasterMap[normalizeSiteKey(row['사업장명'])] = row; });
@@ -455,7 +480,10 @@ function renderTrendReport() {
     };
     const dates = [...new Set(filtRecs.map(r => r.date).filter(Boolean))].sort();
     if (!dates.length) {
-        body.innerHTML = `<div class="no-data-msg"><div style="font-size:48px;margin-bottom:16px">📭</div><div style="font-size:15px;font-weight:900;margin-bottom:8px">선택 사업장 데이터 없음</div></div>`;
+        body.innerHTML = `<div style="padding:4px 0 16px">
+            ${mkFilterHTML(window._mkSel || '중식', siteSelection.availableSites, validSiteFilter)}
+            <div class="no-data-msg"><div style="font-size:48px;margin-bottom:16px">📭</div><div style="font-size:15px;font-weight:900;margin-bottom:8px">선택 사업장 데이터 없음</div><div style="font-size:11px;color:var(--dim)">다른 사업장을 추가 선택하거나 초기화해 주세요</div></div>
+        </div>`;
         return;
     }
 
@@ -604,7 +632,7 @@ function renderTrendReport() {
 
     // ★ v4.0: 공유 컨텍스트 저장 (patternResult 추가)
     window._trCtx = {
-        filtRecs, dates, sites: activeSites, wdDates, lowDates, weDates, normalDates, normalDates30,
+        filtRecs, dates, sites: activeSites, availableSites: siteSelection.availableSites, wdDates, lowDates, weDates, normalDates, normalDates30,
         byDate, byDateDI, byDateTO, normAvg, lowAvg, dropPct, mk, mkColor, getMkVal, normVals, regionLabel, selectedSites,
         prevAvg, diffMoM, isCompleteDate, isActualCompleteDate, currentPeriodIsPartial, latestActualDate
     };
@@ -643,6 +671,15 @@ window.toggleTrendSite = function (site) {
     window._trendSiteFilter = idx >= 0 ? arr.filter(s => s !== site) : [...arr, site];
     renderTrendReport();
 };
+window.selectTrendSiteRegion = function (region) {
+    window._trendSiteFilter = nextTrendRegionSiteFilter(
+        window._trendAvailableSites || [],
+        window._trendSiteRegionMap || {},
+        region,
+        window._trendSiteFilter || []
+    );
+    renderTrendReport();
+};
 window.clearTrendSiteFilter = function () {
     window._trendSiteFilter = [];
     renderTrendReport();
@@ -661,6 +698,7 @@ function mkFilterHTML(mk, sites, siteFilter) {
 
     // 사업장 지역별 그룹화
     const regionMap = {};
+    const siteRegionMap = {};
     sites.forEach(s => {
         // D 배열에서 소속 지역 검색 (대소문자 및 축약어 대응하여 매핑)
         const dObj = typeof D !== 'undefined' ? D.find(x => {
@@ -682,11 +720,16 @@ function mkFilterHTML(mk, sites, siteFilter) {
         
         if (!regionMap[r]) regionMap[r] = [];
         regionMap[r].push(s);
+        siteRegionMap[s] = r;
     });
+
+    window._trendAvailableSites = [...sites];
+    window._trendSiteRegionMap = siteRegionMap;
 
     const sortedRegions = Object.keys(regionMap).sort();
     const siteRowsHtml = sortedRegions.map(reg => {
         const regSites = regionMap[reg];
+        const regionSelected = siteFilter.length === regSites.length && regSites.every(s => siteFilter.includes(s));
         const regSiteBtns = regSites.map(s => {
             const a = siteFilter.includes(s);
             const globalIdx = sites.indexOf(s);
@@ -695,7 +738,7 @@ function mkFilterHTML(mk, sites, siteFilter) {
         }).join('');
 
         return `<div class="site-slider-container" style="display:flex;align-items:center;width:100%;gap:6px;margin-bottom:6px;overflow:hidden">
-            <span class="region-label" style="font-size:9px;color:var(--dim);white-space:nowrap;width:34px;text-align:left;flex-shrink:0;font-weight:700">${reg}</span>
+            <button type="button" onclick="selectTrendSiteRegion('${reg}')" title="${reg} 전체 사업장 합산" style="font-size:9px;color:${regionSelected ? '#34d399' : 'var(--dim)'};white-space:nowrap;min-width:62px;text-align:center;flex-shrink:0;font-weight:800;padding:2px 5px;border-radius:10px;border:1px solid ${regionSelected ? '#34d39988' : 'var(--border)'};background:${regionSelected ? '#34d39918' : 'rgba(255,255,255,.02)'};cursor:pointer">${reg} 합산</button>
             <div class="site-slider" style="display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;flex:1">
                 ${regSiteBtns}
             </div>
@@ -703,6 +746,8 @@ function mkFilterHTML(mk, sites, siteFilter) {
     }).join('');
 
     const clearBtn = siteFilter.length ? `<button onclick="clearTrendSiteFilter()" style="font-size:9px;padding:2px 6px;border-radius:12px;border:1px solid #f43f5e44;background:#f43f5e12;color:#f43f5e;cursor:pointer;white-space:nowrap;margin-left:auto">✕ 초기화</button>` : '';
+    const selectedCount = siteFilter.filter(s => sites.includes(s)).length;
+    const selectionText = selectedCount ? `선택 ${selectedCount}개 합산` : `전체 ${sites.length}개 합산`;
 
     return `<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;padding:10px 12px;background:rgba(0,0,0,.2);border-radius:10px;border:1px solid var(--border)">
         <!-- 끼니 슬라이더 -->
@@ -716,7 +761,8 @@ function mkFilterHTML(mk, sites, siteFilter) {
         <!-- 사업장 지역별 슬라이더 -->
         <div style="display:flex;flex-direction:column;gap:6px;width:100%">
             <div style="display:flex;align-items:center;margin-bottom:2px">
-                <span style="font-size:9px;color:var(--dim);font-weight:700">사업장 필터 (지역별)</span>
+                <span style="font-size:9px;color:var(--dim);font-weight:700">사업장 필터 · 복수 선택 가능 · 지역 합산</span>
+                <span style="font-size:9px;color:#34d399;font-weight:800;margin-left:6px;white-space:nowrap">${selectionText}</span>
                 ${clearBtn}
             </div>
             ${siteRowsHtml}
@@ -727,7 +773,7 @@ function mkFilterHTML(mk, sites, siteFilter) {
 /* ─────────────── TAB 1: 추이 & 예측 ─────────────── */
 function renderTabTrend(body) {
     /* ★ v3.9 수정: selectedSites destructuring 추가 (기존 누락으로 ReferenceError 발생) */
-    const { filtRecs, dates, sites, wdDates, lowDates, normalDates, normalDates30, byDate,
+    const { filtRecs, dates, sites, availableSites, wdDates, lowDates, normalDates, normalDates30, byDate,
         normAvg, lowAvg, dropPct, mk, mkColor, getMkVal, normVals, regionLabel, selectedSites,
         prevAvg, diffMoM, isActualCompleteDate, currentPeriodIsPartial } = window._trCtx;
     const sfilt = window._trendSiteFilter || [];
@@ -908,7 +954,7 @@ function renderTabTrend(body) {
 
     body.innerHTML = `
     <div class="fade-in" style="padding:4px 0 16px">
-    ${mkFilterHTML(mk, sites, sfilt)}
+    ${mkFilterHTML(mk, availableSites || sites, sfilt)}
     <!-- KPI 핵심 지표 (1행 6열 반응형 그리드) -->
     <div class="trend-kpi-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-bottom:14px">
         <div class="kpi-v2 accent"><div class="kv2-lbl" style="white-space:nowrap">평일 평균</div><div class="kv2-val" style="color:${mkColor}">${normTotal.toLocaleString()}<span style="font-size:11px;opacity:.7"> 식</span></div><div class="kv2-sub">D/I ${normAvgDI.toLocaleString()}(${normDiPct}%)<br/>T/O ${normAvgTO.toLocaleString()}(${normToPct}%)</div></div>
@@ -1277,7 +1323,7 @@ function renderTabDaily(body) {
 
     body.innerHTML = `
     <div style="padding:4px 0 16px">
-    ${mkFilterHTML(mk, window._trCtx.sites, sfilt)}
+    ${mkFilterHTML(mk, window._trCtx.availableSites || window._trCtx.sites, sfilt)}
     <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 14px;">
         <div class="kpi-v2 accent" style="padding:8px 4px; text-align:center; border-radius:10px;">
             <div class="kv2-lbl" style="font-size:10px; font-weight:800; opacity:0.8; margin-bottom:4px; white-space:nowrap;">최대 ${mk} 요일</div>
@@ -1409,8 +1455,9 @@ function renderTabDaily(body) {
 
 /* ─────────────── TAB 3: 사업장 비교 ─────────────── */
 function renderTabSites(body) {
-    const { filtRecs, dates, sites, normalDates, lowDates, byDate, mk, mkColor, normAvg, regionLabel } = window._trCtx;
+    const { filtRecs, dates, sites, availableSites, normalDates, lowDates, byDate, mk, mkColor, normAvg, regionLabel } = window._trCtx;
     const sfilt = window._trendSiteFilter || [];
+    const siteAverageLabel = sfilt.length ? '선택평균' : '전체평균';
     const SC = ['#38bdf8', '#34d399', '#fb923c', '#f472b6', '#a78bfa', '#fbbf24', '#60a5fa'];
 
     const getMkValSite = (recs, m) => recs.reduce((s, r) => s + n(r['DI_' + m]) + n(r['TO_' + m]), 0);
@@ -1504,9 +1551,9 @@ function renderTabSites(body) {
 
     body.innerHTML = `
     <div style="padding:4px 0 16px">
-    ${mkFilterHTML(mk, sites, sfilt)}
+    ${mkFilterHTML(mk, availableSites || sites, sfilt)}
     <div class="ch-panel">
-        <div class="ch-panel-title">🏢 사업장별 평일 평균 ${mk} <span style="font-size:9px;color:var(--dim);font-weight:400">기준선=전체평균 ${overallAvg}식</span></div>
+        <div class="ch-panel-title">🏢 사업장별 평일 평균 ${mk} <span style="font-size:9px;color:var(--dim);font-weight:400">기준선=${siteAverageLabel} ${overallAvg}식</span></div>
         <div class="ch-panel-sub">▲초록=평균 상회 / ▼빨강=평균 하회 · 저조기 제외 기준</div>
         <div id="chartSiteBar" class="ch-apex"></div>
     </div>
@@ -1528,7 +1575,7 @@ function renderTabSites(body) {
                 dataLabels: { enabled: true, formatter: v => v.toLocaleString() + '식', style: { fontSize: '10px', colors: ['#e2e8f0'] }, offsetX: 8 },
                 xaxis: { ...APEX_BASE.xaxis, categories: siteData.map(d => d.site), min: 0 },
                 yaxis: { ...APEX_BASE.yaxis, labels: { style: { colors: siteData.map(d => d.color), fontSize: '11px', fontWeight: 700 } } },
-                annotations: { xaxis: [{ x: overallAvg, borderColor: '#38bdf866', strokeDashArray: 4, label: { text: `전체평균 ${overallAvg}`, position: 'top', textAnchor: 'middle', orientation: 'horizontal', style: { background: '#38bdf8', color: '#fff', fontSize: '10px', fontWeight: 900 } } }] },
+                annotations: { xaxis: [{ x: overallAvg, borderColor: '#38bdf866', strokeDashArray: 4, label: { text: `${siteAverageLabel} ${overallAvg}`, position: 'top', textAnchor: 'middle', orientation: 'horizontal', style: { background: '#38bdf8', color: '#fff', fontSize: '10px', fontWeight: 900 } } }] },
                 legend: { show: false },
                 tooltip: { ...APEX_BASE.tooltip, y: { formatter: v => v.toLocaleString() + '식' } },
             }); c6.render(); window._apexCharts.push(c6);
@@ -1554,8 +1601,11 @@ function renderTabSites(body) {
 
 /* ─────────────── TAB 4: 운영 리포트 ─────────────── */
 function renderTabReport(body) {
-    const { filtRecs, dates, sites, normalDates, lowDates, byDate, mk, mkColor, normAvg, regionLabel, getMkVal, selectedSites, isActualCompleteDate, latestActualDate } = window._trCtx;
+    const { filtRecs, dates, sites, availableSites, normalDates, lowDates, byDate, mk, mkColor, normAvg, regionLabel, getMkVal, selectedSites, isActualCompleteDate, latestActualDate } = window._trCtx;
     const sfilt = window._trendSiteFilter || [];
+    const reportScopeText = sfilt.length
+        ? `선택 ${selectedSites.length}개 사업장`
+        : `${regionLabel} 전체 ${selectedSites.length}개 사업장`;
     const wdValsFr = normalDates.map(d => getMkVal(d)).filter(v => v > 0);
     const weVals = (window._trCtx.weDates || []).map(d => getMkVal(d)).filter(v => v > 0);
     const { slope: wdS, intercept: wdI } = linReg(wdValsFr);
@@ -1635,11 +1685,11 @@ function renderTabReport(body) {
 
     body.innerHTML = `
     <div style="padding:4px 0 16px">
-    ${mkFilterHTML(mk, sites, sfilt)}
+    ${mkFilterHTML(mk, availableSites || sites, sfilt)}
     <!-- ★ 일반식 vs 테이크아웃 분리 차트 -->
     <div class="ch-panel">
         <div class="ch-panel-title" style="white-space:nowrap">🍱 D/I vs T/O 분리 분석 <span style="font-size:9px;color:var(--dim);font-weight:400">${mk} · 최근 7일</span></div>
-        <div class="ch-panel-sub">최종 실적일 포함 최근 7개 달력일 중 ${mk} 운영 대상 사업장이 완전 입력된 날짜의 전체 사업장 합산 식수입니다</div>
+        <div class="ch-panel-sub">최종 실적일 포함 최근 7개 달력일 중 ${mk} 운영 대상 사업장이 완전 입력된 날짜의 ${reportScopeText} 합산 식수입니다</div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
             <div class="kpi-v2 accent"><div class="kv2-lbl" style="white-space:nowrap">일반식(D/I)</div><div class="kv2-val" style="color:#38bdf8">${rptWindowComplete ? rptTotalDI_7.toLocaleString() + '<span style="font-size:11px;opacity:.7">식</span>' : '-'}</div><div class="kv2-sub">${rptWindowComplete ? (rptHasVolume7 ? rptDiPct7 + '%' : '합계 0식') : '7일 입력 미완료'}</div></div>
             <div class="kpi-v2 warning"><div class="kv2-lbl" style="white-space:nowrap">T/O</div><div class="kv2-val" style="color:#fbbf24">${rptWindowComplete ? rptTotalTO_7.toLocaleString() + '<span style="font-size:11px;opacity:.7">식</span>' : '-'}</div><div class="kv2-sub">${rptWindowComplete ? (rptHasVolume7 ? rptToPct7 + '%' : '합계 0식') : '7일 입력 미완료'}</div></div>
