@@ -14,6 +14,8 @@ function doGet(e) {
     if (type === "login") {
       var result = authenticateUser(e.parameter.userId, e.parameter.pw);
       if (result.status === 'success') {
+        var loginUserId = String(e.parameter.userId || '').split('@')[0].toLowerCase().trim();
+        writeLoginLog(SpreadsheetApp.getActiveSpreadsheet(), loginUserId, "Success");
         return ContentService.createTextOutput(
           'Valid|' + result.token + '|' + result.role + '|' + result.region + '|' + result.site
         ).setMimeType(ContentService.MimeType.TEXT);

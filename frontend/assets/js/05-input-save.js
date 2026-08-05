@@ -23,7 +23,9 @@ window.svSeat = async function (u, sn) {
 window.svEdit = function (u, sn) {
     OV[sn] = OV[sn] || {};
     ['영양사', '조리사', '웰프로_주', '웰프로_야'].forEach(k => {
-        const v = document.getElementById(`ov_${u}_${k}`).value;
+        const el = document.getElementById(`ov_${u}_${k}`);
+        if (!el) return;
+        const v = el.value;
         if (v) OV[sn][k] = Number(v);
         else delete OV[sn][k];
     });
