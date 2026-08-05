@@ -118,6 +118,48 @@ function doPost(e){
       try{ invalidateReportCache_(); incrementGlobalVersion(); }catch(e){}
       return ContentService.createTextOutput("Success:SeatsUpdated");
     }
+    if(p.action==="updateWorkforce") {
+      var requestedSite=canonicalSiteName_(p.siteName);
+      var val=validateTokenV3(p.tk,"updateWorkforce",requestedSite);
+      if(!val.valid) return ContentService.createTextOutput("AuthExpired");
+      var ss=SpreadsheetApp.getActiveSpreadsheet(), sh=ss.getSheetByName("사업장현황");
+      if(!sh) return ContentService.createTextOutput("Error:InvalidSheet");
+      var fields=["영양사","조리사","웰프로_주","웰프로_야","조식_평일","조식_주말","중식_평일","중식_주말","석식_평일","석식_주말","야식_평일","야식_주말"];
+      var headers=sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0].map(function(h){return String(h||'').trim();});
+      var headerChanged=false;
+      fields.concat(["인력수정일시","인력수정계정"]).forEach(function(h){
+        if(headers.indexOf(h)<0){headers.push(h);headerChanged=true;}
+      });
+      if(headerChanged) sh.getRange(1,1,1,headers.length).setValues([headers]);
+      var siteCol=headers.indexOf("사업장명");
+      if(siteCol<0) return ContentService.createTextOutput("Error:SiteHeaderNotFound");
+      var rowIdx=-1, lastRow=sh.getLastRow();
+      if(lastRow>=2){
+        var siteValues=sh.getRange(2,siteCol+1,lastRow-1,1).getValues();
+        for(var i=0;i<siteValues.length;i++){
+          if(canonicalSiteName_(siteValues[i][0])===requestedSite){rowIdx=i+2;break;}
+        }
+      }
+      if(rowIdx<0) return ContentService.createTextOutput("Error:SiteNotFound");
+      var values=p.values||{};
+      var parseOptionalNonNegative=function(v){
+        if(v===''||v===null||v===undefined) return '';
+        var x=Number(v);
+        if(!isFinite(x)||x<0) throw new Error("InvalidNonNegativeNumber");
+        return x;
+      };
+      fields.forEach(function(field){
+        if(Object.prototype.hasOwnProperty.call(values,field)){
+          sh.getRange(rowIdx,headers.indexOf(field)+1).setValue(parseOptionalNonNegative(values[field]));
+        }
+      });
+      sh.getRange(rowIdx,headers.indexOf("인력수정일시")+1).setValue(new Date());
+      sh.getRange(rowIdx,headers.indexOf("인력수정계정")+1).setValue(val.payload.userId||'');
+      SpreadsheetApp.flush();
+      CacheService.getScriptCache().remove("ALL_SITE_DATA_V3");
+      try{invalidateReportCache_();incrementGlobalVersion();}catch(e){}
+      return ContentService.createTextOutput("Success:WorkforceUpdated");
+    }
     var val = validateTokenV3(p.tk, "save", p.siteName || "");
     if(!val.valid) return ContentService.createTextOutput("AuthExpired");
     var uid = val.payload.userId;

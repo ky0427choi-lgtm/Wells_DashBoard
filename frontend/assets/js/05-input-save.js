@@ -20,26 +20,41 @@ window.svSeat = async function (u, sn) {
         .catch(e => console.warn('좌석수 시트 저장 실패:', e.message));
 };
 
-window.svEdit = function (u, sn) {
-    OV[sn] = OV[sn] || {};
-    ['영양사', '조리사', '웰프로_주', '웰프로_야'].forEach(k => {
-        const el = document.getElementById(`ov_${u}_${k}`);
-        if (!el) return;
-        const v = el.value;
-        if (v) OV[sn][k] = Number(v);
-        else delete OV[sn][k];
-    });
-    ["조식", "중식", "석식", "야식"].forEach(m => {
-        ["평일", "주말", "실투입"].forEach(t => {
-            const el = document.getElementById(`ov_${u}_${m}_${t}`);
-            if (!el) return;
-            const v = el.value;
-            if (v) OV[sn][m + '_' + t] = Number(v);
-            else delete OV[sn][m + '_' + t];
+window.svEdit = async function (button, u, sn) {
+    const fields = ['영양사', '조리사', '웰프로_주', '웰프로_야'];
+    ['조식', '중식', '석식', '야식'].forEach(m => ['평일', '주말'].forEach(t => fields.push(`${m}_${t}`)));
+    const values = {};
+    for (const field of fields) {
+        const el = document.getElementById(`ov_${u}_${field}`);
+        if (!el) continue;
+        if (el.value !== '' && (Number(el.value) < 0 || !Number.isFinite(Number(el.value)))) {
+            alert('인원은 0 이상의 숫자로 입력해 주세요.');
+            el.focus();
+            return;
+        }
+        values[field] = el.value === '' ? '' : Number(el.value);
+    }
+    const originalText = button ? button.textContent : '적용';
+    if (button) { button.disabled = true; button.textContent = '저장 중...'; }
+    try {
+        const response = await fetch(API, {
+            method: 'POST',
+            body: JSON.stringify({ tk: TK, action: 'updateWorkforce', siteName: sn, values }),
+            redirect: 'follow'
         });
-    });
-    so();
-    render();
+        const text = await response.text();
+        if (text === 'AuthExpired') throw new Error('로그인 시간이 만료되었습니다. 다시 로그인해 주세요.');
+        if (!text.includes('Success')) throw new Error(text.replace(/^Error:/, '') || '저장 실패');
+        const site = D.find(row => row['사업장명'] === sn);
+        if (site) Object.keys(values).forEach(field => { site[field] = values[field]; });
+        localStorage.setItem('WS_D_CACHE', JSON.stringify(D));
+        delete OV[sn];
+        so();
+        render();
+    } catch (e) {
+        if (button) { button.disabled = false; button.textContent = originalText; }
+        alert('인력 저장에 실패했습니다.\n' + e.message);
+    }
 };
 
 window.toggleGoalEdit = function (u) {

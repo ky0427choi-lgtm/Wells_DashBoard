@@ -96,16 +96,20 @@ function render() {
         const reAuto = re_raw === 0 && seats_v > 0 && diMid > 0, riAuto = ri_raw === 0 && seats_v > 0 && (diMid + toMid) > 0;
         const o = OV[sn] || {}, meals = ["조식", "중식", "석식", "야식"];
 
+        const hasStaffValue = v => v !== '' && v !== null && v !== undefined;
+        const fieldValue = key => hasStaffValue(d[key]) ? d[key] : '';
         let gR = ''; meals.forEach(m => {
             const tot = n(d["DI_" + m]) + n(d["TO_" + m]);
-            const ms = st; // 전체 근무인원을 투입인원으로 사용
+            const ms = hasStaffValue(d[m + "_평일"]) ? n(d[m + "_평일"]) : st;
             const ps = ms > 0 ? (tot / ms).toFixed(1) : "0.0";
             gR += `<tr><td>${m}</td><td>${f(d["DI_" + m])}</td><td>${f(d["TO_" + m])}</td><td>${f(tot)}</td><td>${ms}</td><td style="color:var(--accent);font-weight:900">${ps}</td></tr>`;
         });
 
         const rS = D.filter(x => x["지역"] === rg), mxL = Math.max(...rS.map(x => n(x["DI_중식"]) + n(x["TO_중식"])));
         let cB = ''; if (rS.length > 1) { cB = `<div class="sec-title">📊 ${rg} 중식 비교</div>`; rS.forEach(r => { const l = n(r["DI_중식"]) + n(r["TO_중식"]), p = mxL > 0 ? (l / mxL * 100) : 0, c = r["사업장명"] === sn; cB += `<div class="ch-bar"><div class="ch-name" style="${c ? 'color:var(--accent)' : ''}">${r["사업장명"]}</div><div class="ch-track"><div class="ch-fill" style="width:${p}%;background:${c ? 'linear-gradient(90deg,var(--accent),var(--accent2))' : 'rgba(100,116,139,.4)'}">${f(l)}</div></div></div>`; }); }
-        const eF = meals.map(m => `<div class="ff"><label>${m} 평일</label><input type="number" id="ov_${u}_${m}_평일" value="${o[m + '_평일'] || ''}"></div><div class="ff"><label>${m} 주말</label><input type="number" id="ov_${u}_${m}_주말" value="${o[m + '_주말'] || ''}"></div>`).join('');
+        const baseStaffFields = ['영양사', '조리사', '웰프로_주', '웰프로_야'];
+        const baseStaffHtml = baseStaffFields.map(k => `<div class="ff"><label>${k.replace('_', ' ')}</label><input type="number" min="0" id="ov_${u}_${k}" value="${fieldValue(k)}"></div>`).join('');
+        const eF = meals.map(m => `<div class="ff"><label>${m} 평일</label><input type="number" min="0" id="ov_${u}_${m}_평일" value="${fieldValue(m + '_평일')}" placeholder="미입력"></div><div class="ff"><label>${m} 주말</label><input type="number" min="0" id="ov_${u}_${m}_주말" value="${fieldValue(m + '_주말')}" placeholder="미입력"></div>`).join('');
 
         const alert = (typeof getAlertStatus === "function") ? getAlertStatus(sn) : { trigger: false };
         let alertBanner = '', ledDot = '';
@@ -155,7 +159,7 @@ function render() {
                     <div><div class="lb">웰프로 주/야</div><div class="vl">${n(d["웰프로_주"])}/${n(d["웰프로_야"])}</div></div>
                 </div>
             </div>
-            ${canEdit ? `<div id="p_edit_${u}" class="ipanel"><div class="sec-title">✏️ 인력 수정</div><div class="fg">${eF}</div><button class="sv-btn blue" onclick="svEdit('${u}','${sn}')">적용</button></div>` : ''}
+            ${canEdit ? `<div id="p_edit_${u}" class="ipanel"><div class="sec-title">✏️ 인력 수정</div><div style="font-size:10px;color:var(--muted);margin-bottom:8px">기본 근무인원</div><div class="fg">${baseStaffHtml}</div><div style="height:1px;background:var(--border);margin:14px 0"></div><div style="font-size:10px;color:var(--muted);margin-bottom:8px">끼니별 배치인원 <span style="color:var(--dim)">(선택)</span></div><div class="fg">${eF}</div><button class="sv-btn blue" onclick="svEdit(this,'${u}','${sn}')">적용</button></div>` : ''}
             <div class="tbl-wrap"><table><thead><tr><th>구분</th><th>조식</th><th>중식</th><th>석식</th><th>야식</th></tr></thead><tbody>
                 <tr><td>D/I</td><td>${f(d["DI_조식"])}</td><td>${f(d["DI_중식"])}</td><td>${f(d["DI_석식"])}</td><td>${f(d["DI_야식"])}</td></tr>
                 <tr><td>T/O</td><td>${f(d["TO_조식"])}</td><td>${f(d["TO_중식"])}</td><td>${f(d["TO_석식"])}</td><td>${f(d["TO_야식"])}</td></tr>

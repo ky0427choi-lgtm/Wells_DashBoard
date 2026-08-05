@@ -277,7 +277,7 @@ function validateTokenV3(token, requestedAction, requestedSite) {
     return { valid: false, reason: 'TOKEN_EXPIRED' };
   }
 
-  var ALLOWED_ACTIONS = ['login', 'perf', 'perfVersion', 'trendBaseline', 'sessionLog', 'save', 'saveOverride', 'saveGoal', 'monthly', 'trendSummary', 'uploadBaseline', 'updateSeats'];
+  var ALLOWED_ACTIONS = ['login', 'perf', 'perfVersion', 'trendBaseline', 'sessionLog', 'save', 'saveOverride', 'saveGoal', 'monthly', 'trendSummary', 'uploadBaseline', 'updateSeats', 'updateWorkforce'];
   if (requestedAction && ALLOWED_ACTIONS.indexOf(requestedAction) === -1) {
     logSecurityEvent('INVALID_ACTION', payload.userId, requestedAction, requestedSite || '-', 'BLOCKED', '허용되지 않은 action');
     return { valid: false, reason: 'ACTION_NOT_ALLOWED' };
