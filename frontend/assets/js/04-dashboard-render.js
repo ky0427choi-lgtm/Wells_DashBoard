@@ -108,8 +108,8 @@ function render() {
         const rS = D.filter(x => x["지역"] === rg), mxL = Math.max(...rS.map(x => n(x["DI_중식"]) + n(x["TO_중식"])));
         let cB = ''; if (rS.length > 1) { cB = `<div class="sec-title">📊 ${rg} 중식 비교</div>`; rS.forEach(r => { const l = n(r["DI_중식"]) + n(r["TO_중식"]), p = mxL > 0 ? (l / mxL * 100) : 0, c = r["사업장명"] === sn; cB += `<div class="ch-bar"><div class="ch-name" style="${c ? 'color:var(--accent)' : ''}">${r["사업장명"]}</div><div class="ch-track"><div class="ch-fill" style="width:${p}%;background:${c ? 'linear-gradient(90deg,var(--accent),var(--accent2))' : 'rgba(100,116,139,.4)'}">${f(l)}</div></div></div>`; }); }
         const baseStaffFields = ['영양사', '조리사', '웰프로_주', '웰프로_야'];
-        const baseStaffHtml = baseStaffFields.map(k => `<div class="ff"><label>${k.replace('_', ' ')}</label><input type="number" min="0" id="ov_${u}_${k}" value="${fieldValue(k)}"></div>`).join('');
-        const eF = meals.map(m => `<div class="ff"><label>${m} 평일</label><input type="number" min="0" id="ov_${u}_${m}_평일" value="${fieldValue(m + '_평일')}" placeholder="미입력"></div><div class="ff"><label>${m} 주말</label><input type="number" min="0" id="ov_${u}_${m}_주말" value="${fieldValue(m + '_주말')}" placeholder="미입력"></div>`).join('');
+        const baseStaffHtml = baseStaffFields.map(k => `<div class="ff"><label>${k.replace('_', ' ')}</label><input type="number" min="0" id="ov_${u}_${k}" value="${fieldValue(k)}" data-original="${fieldValue(k)}"></div>`).join('');
+        const eF = meals.map(m => `<div class="ff"><label>${m} 평일</label><input type="number" min="0" id="ov_${u}_${m}_평일" value="${fieldValue(m + '_평일')}" data-original="${fieldValue(m + '_평일')}" placeholder="미입력"></div><div class="ff"><label>${m} 주말</label><input type="number" min="0" id="ov_${u}_${m}_주말" value="${fieldValue(m + '_주말')}" data-original="${fieldValue(m + '_주말')}" placeholder="미입력"></div>`).join('');
 
         const alert = (typeof getAlertStatus === "function") ? getAlertStatus(sn) : { trigger: false };
         let alertBanner = '', ledDot = '';

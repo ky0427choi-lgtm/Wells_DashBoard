@@ -32,9 +32,19 @@ window.svEdit = async function (button, u, sn) {
             el.focus();
             return;
         }
-        values[field] = el.value === '' ? '' : Number(el.value);
+        const currentValue = el.value === '' ? '' : Number(el.value);
+        const originalRaw = el.dataset.original == null ? '' : el.dataset.original;
+        const originalValue = originalRaw === '' ? '' : Number(originalRaw);
+        if (currentValue !== originalValue) values[field] = currentValue;
     }
     const originalText = button ? button.textContent : '적용';
+    if (!Object.keys(values).length) {
+        if (button) {
+            button.textContent = '변경 없음';
+            setTimeout(() => { button.textContent = originalText; }, 900);
+        }
+        return;
+    }
     if (button) { button.disabled = true; button.textContent = '저장 중...'; }
     try {
         const response = await fetch(API, {
